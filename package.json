@@ -13,7 +13,9 @@
   "scripts": {
     "start": "node bin/nginxconf-wizard.js",
     "dev": "node bin/nginxconf-wizard.js",
-    "test": "jest",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
     "lint": "eslint src/**/*.js",
     "format": "prettier --write \"src/**/*.js\""
   },

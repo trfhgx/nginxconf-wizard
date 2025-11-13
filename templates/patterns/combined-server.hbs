@@ -1,0 +1,183 @@
+# Nginx Configuration for {{domain.primary}}
+# Pattern: Combined Server (Fullstack Application)
+# Generated: {{generatedAt}}
+
+{{#if features.upstream}}
+# Upstream Backend Configuration
+upstream {{features.upstream.name}} {
+    {{#each features.upstream.servers}}
+    server {{this.host}}:{{this.port}}{{#if this.weight}} weight={{this.weight}}{{/if}}{{#if this.maxFails}} max_fails={{this.maxFails}}{{/if}}{{#if this.failTimeout}} fail_timeout={{this.failTimeout}}{{/if}};
+    {{/each}}
+    
+    {{#if features.upstream.keepalive}}
+    # Connection pooling
+    keepalive {{features.upstream.keepalive}};
+    keepalive_timeout 60s;
+    {{/if}}
+}
+{{/if}}
+
+{{#if ssl.enabled}}
+# HTTP -> HTTPS Redirect
+server {
+    listen {{domain.port}};
+    listen [::]:{{domain.port}};
+    server_name {{domain.primary}}{{#each domain.aliases}} {{this}}{{/each}};
+
+    # Redirect all HTTP to HTTPS
+    return 301 https://$server_name$request_uri;
+}
+
+# HTTPS Server
+server {
+    listen {{domain.httpsPort}} ssl{{#if ssl.http2}} http2{{/if}}{{#if ssl.http3}} http3{{/if}};
+    listen [::]:{{domain.httpsPort}} ssl{{#if ssl.http2}} http2{{/if}}{{#if ssl.http3}} http3{{/if}};
+    
+    server_name {{domain.primary}}{{#each domain.aliases}} {{this}}{{/each}};
+
+    # SSL Configuration
+    {{#if (eq ssl.provider "letsencrypt")}}
+    ssl_certificate /etc/letsencrypt/live/{{domain.primary}}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{domain.primary}}/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/{{domain.primary}}/chain.pem;
+    {{else if (eq ssl.provider "custom")}}
+    ssl_certificate {{ssl.certPath}};
+    ssl_certificate_key {{ssl.keyPath}};
+    {{else if (eq ssl.provider "cloudflare")}}
+    ssl_certificate /etc/ssl/cloudflare/{{domain.primary}}.pem;
+    ssl_certificate_key /etc/ssl/cloudflare/{{domain.primary}}.key;
+    ssl_client_certificate /etc/ssl/cloudflare/origin-pull-ca.pem;
+    ssl_verify_client on;
+    {{/if}}
+
+    # SSL Protocols and Ciphers
+    ssl_protocols {{sslProtocols ssl.http2 ssl.http3}};
+    ssl_ciphers {{sslCiphers}};
+    ssl_prefer_server_ciphers off;
+
+    # SSL Session
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+
+    # OCSP Stapling
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+
+    {{#if ssl.http3}}
+    # HTTP/3 Configuration
+    add_header Alt-Svc 'h3=":{{domain.httpsPort}}"; ma=86400';
+    {{/if}}
+
+{{else}}
+# HTTP Server
+server {
+    listen {{domain.port}};
+    listen [::]:{{domain.port}};
+    
+    server_name {{domain.primary}}{{#each domain.aliases}} {{this}}{{/each}};
+{{/if}}
+
+    # Access and Error Logs
+    access_log /var/log/nginx/{{domain.primary}}/access.log combined;
+    error_log /var/log/nginx/{{domain.primary}}/error.log warn;
+
+    {{#if security.headers}}
+    # Security Headers
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    {{#if ssl.enabled}}
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    {{/if}}
+    {{/if}}
+
+    # Proxy to Application Server
+    location / {
+        {{#if features.upstream}}
+        proxy_pass http://{{features.upstream.name}};
+        {{else}}
+        proxy_pass http://localhost:3000;
+        {{/if}}
+        
+        proxy_http_version 1.1;
+        
+        # Proxy Headers
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port $server_port;
+        
+        # WebSocket support
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        # Timeouts
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        
+        # Buffering
+        proxy_buffering on;
+        proxy_buffer_size 4k;
+        proxy_buffers 8 4k;
+        proxy_busy_buffers_size 8k;
+        
+        {{#if features.compression}}
+        # Gzip Compression
+        gzip on;
+        gzip_vary on;
+        gzip_proxied any;
+        gzip_comp_level 6;
+        gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss application/atom+xml image/svg+xml;
+        {{/if}}
+    }
+
+    {{#if features.staticPath}}
+    # Static Assets (if served separately)
+    location {{features.staticPath}} {
+        alias {{features.staticRoot}};
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+    {{/if}}
+
+    # Cache Static Assets
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot)$ {
+        {{#if features.upstream}}
+        proxy_pass http://{{features.upstream.name}};
+        {{else}}
+        proxy_pass http://localhost:3000;
+        {{/if}}
+        
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        proxy_cache_valid 200 1y;
+        access_log off;
+    }
+
+    # Deny access to hidden files
+    location ~ /\. {
+        deny all;
+        access_log off;
+        log_not_found off;
+    }
+
+    {{#if customDirectives}}
+    # Custom Directives
+    {{#each customDirectives}}
+    {{{this}}}
+    {{/each}}
+    {{/if}}
+}
+
+{{#if security.rateLimiting}}
+# Rate Limiting Zone
+limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/s;
+{{/if}}

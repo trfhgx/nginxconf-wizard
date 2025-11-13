@@ -77,8 +77,7 @@ class Wizard {
           },
           {
             name: 'SPA + API - Single Page App with separate API backend',
-            value: 'spa-with-api',
-            disabled: 'Coming in Week 2'
+            value: 'spa-with-api'
           },
           {
             name: 'SSR + API - Server-Side Rendered (Next.js, Nuxt)',
@@ -87,8 +86,7 @@ class Wizard {
           },
           {
             name: 'Combined Server - Fullstack app (one server for both)',
-            value: 'combined-server',
-            disabled: 'Coming in Week 4'
+            value: 'combined-server'
           },
           {
             name: 'Hybrid - Mix of static and dynamic content',
@@ -328,16 +326,111 @@ class Wizard {
         message: 'Is this a Single Page Application (fallback to index.html)?',
         default: this.answers.pattern === 'static-only',
         when: () => this.answers.pattern === 'static-only'
+      },
+      {
+        type: 'confirm',
+        name: 'hasProxy',
+        message: 'Configure API proxy?',
+        default: true,
+        when: () => this.answers.pattern === 'spa-with-api'
+      },
+      {
+        type: 'input',
+        name: 'proxyPath',
+        message: 'API proxy path (e.g., /api):',
+        default: '/api',
+        when: (answers) => answers.hasProxy
+      },
+      {
+        type: 'input',
+        name: 'proxyTarget',
+        message: 'API backend URL (e.g., http://localhost:3000):',
+        default: 'http://localhost:3000',
+        when: (answers) => answers.hasProxy,
+        validate: (input) => {
+          if (!input.startsWith('http://') && !input.startsWith('https://')) {
+            return 'URL must start with http:// or https://';
+          }
+          return true;
+        }
+      },
+      {
+        type: 'confirm',
+        name: 'cors',
+        message: 'Enable CORS headers for API?',
+        default: true,
+        when: (answers) => answers.hasProxy
+      },
+      {
+        type: 'input',
+        name: 'corsOrigin',
+        message: 'CORS allowed origin:',
+        default: (answers) => `https://${this.answers.domain.primary}`,
+        when: (answers) => answers.cors
+      },
+      {
+        type: 'confirm',
+        name: 'hasUpstream',
+        message: 'Configure upstream servers (load balancing)?',
+        default: false,
+        when: () => this.answers.pattern === 'combined-server'
+      },
+      {
+        type: 'input',
+        name: 'upstreamName',
+        message: 'Upstream name:',
+        default: 'backend',
+        when: (answers) => answers.hasUpstream
+      },
+      {
+        type: 'input',
+        name: 'upstreamServers',
+        message: 'Backend servers (comma-separated, e.g., localhost:3000,localhost:3001):',
+        default: 'localhost:3000',
+        when: (answers) => answers.hasUpstream,
+        filter: (input) => {
+          return input.split(',').map(s => {
+            const [host, port] = s.trim().split(':');
+            return { host, port: parseInt(port) || 3000 };
+          });
+        }
+      },
+      {
+        type: 'number',
+        name: 'keepalive',
+        message: 'Keepalive connections:',
+        default: 32,
+        when: (answers) => answers.hasUpstream
       }
     ];
 
     const answers = await inquirer.prompt(questions);
 
-    this.config.setFeatures({
+    const features = {
       compression: answers.compression,
-      spa: answers.spa || false
-    });
+      spa: answers.spa || (this.answers.pattern === 'spa-with-api')
+    };
 
+    // Add proxy configuration if enabled
+    if (answers.hasProxy) {
+      features.proxy = {
+        path: answers.proxyPath,
+        target: answers.proxyTarget,
+        cors: answers.cors,
+        corsOrigin: answers.corsOrigin || '*'
+      };
+    }
+
+    // Add upstream configuration if enabled
+    if (answers.hasUpstream) {
+      features.upstream = {
+        name: answers.upstreamName,
+        servers: answers.upstreamServers,
+        keepalive: answers.keepalive
+      };
+    }
+
+    this.config.setFeatures(features);
     this.answers.features = answers;
   }
 
