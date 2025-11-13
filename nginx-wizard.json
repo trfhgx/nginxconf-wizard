@@ -1,0 +1,52 @@
+{
+  "version": "1.0.0",
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2025-11-13T14:58:26.373Z",
+  "updatedAt": "2025-11-13T14:58:26.373Z",
+  "pattern": "ssr-with-api",
+  "domain": {
+    "primary": "fxshop.store",
+    "aliases": [
+      "www"
+    ],
+    "port": 80,
+    "httpsPort": 443
+  },
+  "ssl": {
+    "enabled": true,
+    "provider": "cloudflare",
+    "http2": true,
+    "http3": true
+  },
+  "performance": {
+    "profile": "cdn-origin",
+    "workers": "auto",
+    "connections": 1024,
+    "caching": true
+  },
+  "security": {
+    "headers": true,
+    "rateLimiting": false,
+    "ddosProtection": false
+  },
+  "features": {
+    "compression": true,
+    "spa": false,
+    "upstream": {
+      "ssrServers": [
+        {
+          "host": "localhoost",
+          "port": 4005
+        }
+      ],
+      "apiServers": [
+        {
+          "host": "localhost",
+          "port": 8000
+        }
+      ]
+    },
+    "apiPath": "/api"
+  },
+  "customDirectives": []
+}

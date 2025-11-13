@@ -57,7 +57,7 @@ class TemplateEngine {
     });
 
     // Helper: Format SSL protocols
-    Handlebars.registerHelper('sslProtocols', (http2, http3) => {
+    Handlebars.registerHelper('sslProtocols', (_http2, _http3) => {
       const protocols = ['TLSv1.2', 'TLSv1.3'];
       return protocols.join(' ');
     });
@@ -68,14 +68,17 @@ class TemplateEngine {
     });
 
     // Helper: Comment block
-    Handlebars.registerHelper('comment', (text) => {
+    Handlebars.registerHelper('comment', text => {
       return `# ${text}`;
     });
 
     // Helper: Indent text
     Handlebars.registerHelper('indent', (text, spaces = 4) => {
       const indent = ' '.repeat(spaces);
-      return text.split('\n').map(line => indent + line).join('\n');
+      return text
+        .split('\n')
+        .map(line => indent + line)
+        .join('\n');
     });
   }
 
@@ -87,21 +90,21 @@ class TemplateEngine {
    */
   async loadTemplate(templateName, category = 'patterns') {
     const cacheKey = `${category}/${templateName}`;
-    
+
     // Return cached template if available
     if (this.templates.has(cacheKey)) {
       return this.templates.get(cacheKey);
     }
 
     const templatePath = path.join(this.templatesDir, category, `${templateName}.hbs`);
-    
+
     try {
       const templateContent = await fs.readFile(templatePath, 'utf-8');
       const compiled = Handlebars.compile(templateContent);
-      
+
       // Cache the compiled template
       this.templates.set(cacheKey, compiled);
-      
+
       return compiled;
     } catch (error) {
       if (error.code === 'ENOENT') {
@@ -148,10 +151,10 @@ class TemplateEngine {
    */
   async loadPartials(directory = 'snippets') {
     const partialsDir = path.join(this.templatesDir, directory);
-    
+
     try {
       const files = await fs.readdir(partialsDir);
-      
+
       for (const file of files) {
         if (file.endsWith('.hbs')) {
           const name = path.basename(file, '.hbs');

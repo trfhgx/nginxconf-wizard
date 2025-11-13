@@ -129,11 +129,13 @@ class Validator {
       port: Joi.number().integer().min(1).max(65535).required(),
       weight: Joi.number().integer().min(1).optional(),
       maxFails: Joi.number().integer().min(0).optional(),
-      failTimeout: Joi.string().pattern(/^\d+[smh]$/).optional()
+      failTimeout: Joi.string()
+        .pattern(/^\d+[smh]$/)
+        .optional()
     });
 
     const { error } = schema.validate(upstream);
-    
+
     if (error) {
       this.errors.push(`Invalid upstream configuration: ${error.message}`);
       return false;
@@ -166,7 +168,7 @@ class Validator {
     });
 
     const { error } = schema.validate(sslConfig);
-    
+
     if (error) {
       this.errors.push(`Invalid SSL configuration: ${error.message}`);
       return false;
@@ -189,13 +191,15 @@ class Validator {
     const schema = Joi.object({
       enabled: Joi.boolean().required(),
       zone: Joi.string().optional(),
-      rate: Joi.string().pattern(/^\d+r\/[sm]$/).optional(),
+      rate: Joi.string()
+        .pattern(/^\d+r\/[sm]$/)
+        .optional(),
       burst: Joi.number().integer().min(0).optional(),
       nodelay: Joi.boolean().optional()
     });
 
     const { error } = schema.validate(rateLimitConfig);
-    
+
     if (error) {
       this.errors.push(`Invalid rate limit configuration: ${error.message}`);
       return false;

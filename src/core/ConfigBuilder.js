@@ -1,6 +1,5 @@
-import Handlebars from 'handlebars';
+import TemplateEngine from './TemplateEngine.js';
 import path from 'path';
-import { promises as fs } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
@@ -24,6 +23,7 @@ class ConfigBuilder {
     };
     this.errors = [];
     this.warnings = [];
+    this.templateEngine = new TemplateEngine();
   }
 
   /**
@@ -122,11 +122,7 @@ class ConfigBuilder {
    * @param {Object} securityConfig - Security settings
    */
   setSecurity(securityConfig) {
-    const {
-      headers = true,
-      rateLimiting = false,
-      ddosProtection = false
-    } = securityConfig;
+    const { headers = true, rateLimiting = false, ddosProtection = false } = securityConfig;
 
     this.config.security = {
       headers,
@@ -214,24 +210,17 @@ class ConfigBuilder {
    */
   async build() {
     const validation = this.validate();
-    
+
     if (!validation.valid) {
       throw new Error(`Configuration validation failed:\n${validation.errors.join('\n')}`);
     }
 
-    // Load template based on pattern
-    const templatePath = path.join(__dirname, '../../templates/patterns', `${this.config.pattern}.hbs`);
-    
+    // Render template using TemplateEngine
     try {
-      const templateContent = await fs.readFile(templatePath, 'utf-8');
-      const template = Handlebars.compile(templateContent);
-      
-      // Render template with config
-      const nginxConfig = template(this.config);
-      
+      const nginxConfig = await this.templateEngine.render(this.config.pattern, this.config);
       return nginxConfig;
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error.message.includes('Template not found')) {
         throw new Error(`Template not found for pattern: ${this.config.pattern}`);
       }
       throw error;
@@ -258,7 +247,7 @@ class ConfigBuilder {
    */
   importState(state) {
     const { pattern, domain, ssl, performance, security, features, customDirectives } = state;
-    
+
     if (pattern) this.config.pattern = pattern;
     if (domain) this.config.domain = domain;
     if (ssl) this.config.ssl = ssl;

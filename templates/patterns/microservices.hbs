@@ -1,0 +1,124 @@
+# Nginx Configuration for {{domain.primary}}
+# Pattern: Microservices Gateway
+# Generated: {{generatedAt}}
+
+{{#each features.services}}
+# Upstream: {{this.name}}
+upstream {{this.name}} {
+    {{#each this.servers}}
+    server {{this.host}}:{{this.port}}{{#if this.weight}} weight={{this.weight}}{{/if}}{{#if this.maxFails}} max_fails={{this.maxFails}}{{/if}}{{#if this.failTimeout}} fail_timeout={{this.failTimeout}}{{/if}};
+    {{/each}}
+    
+    {{#if ../features.upstream.keepalive}}
+    keepalive {{../features.upstream.keepalive}};
+    keepalive_timeout 60s;
+    {{/if}}
+    
+    {{#if this.healthCheck}}
+    # Health check would go here (requires nginx-plus or custom module)
+    {{/if}}
+}
+
+{{/each}}
+
+{{#if ssl.enabled}}
+# HTTP -> HTTPS Redirect
+server {
+    listen {{domain.port}};
+    listen [::]:{{domain.port}};
+    server_name {{domain.primary}}{{#each domain.aliases}} {{this}}{{/each}};
+    return 301 https://$server_name$request_uri;
+}
+
+server {
+    listen {{domain.httpsPort}} ssl{{#if ssl.http2}} http2{{/if}}{{#if ssl.http3}} http3{{/if}};
+    listen [::]:{{domain.httpsPort}} ssl{{#if ssl.http2}} http2{{/if}}{{#if ssl.http3}} http3{{/if}};
+    server_name {{domain.primary}}{{#each domain.aliases}} {{this}}{{/each}};
+
+    # SSL Configuration
+    {{#if (eq ssl.provider "letsencrypt")}}
+    ssl_certificate /etc/letsencrypt/live/{{domain.primary}}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{domain.primary}}/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/{{domain.primary}}/chain.pem;
+    {{else if (eq ssl.provider "custom")}}
+    ssl_certificate {{ssl.certPath}};
+    ssl_certificate_key {{ssl.keyPath}};
+    {{/if}}
+
+    ssl_protocols {{sslProtocols ssl.http2 ssl.http3}};
+    ssl_ciphers {{sslCiphers}};
+    ssl_prefer_server_ciphers off;
+    ssl_session_timeout 1d;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_tickets off;
+{{else}}
+server {
+    listen {{domain.port}};
+    listen [::]:{{domain.port}};
+    server_name {{domain.primary}}{{#each domain.aliases}} {{this}}{{/each}};
+{{/if}}
+
+    access_log /var/log/nginx/{{domain.primary}}/access.log combined;
+    error_log /var/log/nginx/{{domain.primary}}/error.log warn;
+
+    {{#if security.headers}}
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-XSS-Protection "1; mode=block" always;
+    {{#if ssl.enabled}}
+    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains" always;
+    {{/if}}
+    {{/if}}
+
+    {{#each features.services}}
+    # Service: {{this.name}}
+    location {{this.path}} {
+        proxy_pass http://{{this.name}};
+        proxy_http_version 1.1;
+        
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        
+        proxy_connect_timeout {{this.timeout}}s;
+        proxy_send_timeout {{this.timeout}}s;
+        proxy_read_timeout {{this.timeout}}s;
+        
+        {{#if this.rateLimit}}
+        limit_req zone={{this.name}}_limit burst={{this.rateLimitBurst}} nodelay;
+        {{/if}}
+        
+        {{#if this.cors}}
+        add_header Access-Control-Allow-Origin {{this.corsOrigin}} always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Authorization, Content-Type" always;
+        
+        if ($request_method = 'OPTIONS') {
+            return 204;
+        }
+        {{/if}}
+    }
+
+    {{/each}}
+
+    location /health {
+        access_log off;
+        return 200 "OK\n";
+        add_header Content-Type text/plain;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+}
+
+{{#if security.rateLimiting}}
+{{#each features.services}}
+{{#if this.rateLimit}}
+limit_req_zone $binary_remote_addr zone={{this.name}}_limit:10m rate={{this.rateLimit}};
+{{/if}}
+{{/each}}
+{{/if}}

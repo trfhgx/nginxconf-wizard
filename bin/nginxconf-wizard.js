@@ -7,6 +7,8 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Wizard from '../src/cli/Wizard.js';
+import { validateConfig } from '../src/cli/validate.js';
+import { testConfig } from '../src/cli/test.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -87,7 +89,13 @@ program
   .command('validate <config>')
   .description('Validate nginx configuration file')
   .action(async (config) => {
-    console.log(chalk.yellow('🚧 Validate command coming soon'));
+    try {
+      const isValid = await validateConfig(config);
+      process.exit(isValid ? 0 : 1);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error.message);
+      process.exit(1);
+    }
   });
 
 // Test command
@@ -95,7 +103,13 @@ program
   .command('test <config>')
   .description('Test nginx configuration (runs nginx -t)')
   .action(async (config) => {
-    console.log(chalk.yellow('🚧 Test command coming soon'));
+    try {
+      const isValid = await testConfig(config);
+      process.exit(isValid ? 0 : 1);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error.message);
+      process.exit(1);
+    }
   });
 
 // Display banner
