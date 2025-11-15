@@ -1,6 +1,6 @@
 {
   "name": "nginxconf-wizard",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Intelligent CLI tool for generating production-ready Nginx configurations",
   "type": "module",
   "main": "src/index.js",

@@ -3,7 +3,6 @@
 [![npm version](https://img.shields.io/npm/v/nginxconf-wizard.svg)](https://www.npmjs.com/package/nginxconf-wizard)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js Version](https://img.shields.io/node/v/nginxconf-wizard)](https://nodejs.org/)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/trfhgx/nginxconf-wizard/ci.yml)](https://github.com/trfhgx/nginxconf-wizard/actions)
 [![Downloads](https://img.shields.io/npm/dm/nginxconf-wizard.svg)](https://www.npmjs.com/package/nginxconf-wizard)
 [![GitHub stars](https://img.shields.io/github/stars/trfhgx/nginxconf-wizard.svg)](https://github.com/trfhgx/nginxconf-wizard/stargazers)
 
