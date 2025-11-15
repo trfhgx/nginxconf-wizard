@@ -16,6 +16,21 @@ npm install
 npm link
 ```
 
+### Testing
+
+```bash
+npm test                    # Run test suite
+npm run lint               # Check code style
+npm run lint -- --fix      # Auto-fix issues
+```
+
+### Building
+
+```bash
+npm run build              # Build for production
+npm run dev                # Development mode
+```
+
 ## Project Structure
 
 ```
