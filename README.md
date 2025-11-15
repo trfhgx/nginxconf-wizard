@@ -171,9 +171,10 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md).
 
 ### Getting Help
 - [Documentation](docs/README.md)
-- [Discord Community](https://discord.gg/example)
 - [Issue Tracker](https://github.com/trfhgx/nginxconf-wizard/issues)
-
+ALso checkout
+- [Troubleshoot](docsp/troubleshooting.md)
+- [Roadmap](ROADMAP.md)
 ---
 
 ## License
