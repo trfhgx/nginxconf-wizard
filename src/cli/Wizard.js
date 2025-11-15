@@ -59,7 +59,6 @@ class Wizard {
 
       // Step 9: Advanced features (if advanced mode)
       if (this.advancedMode) {
-        await this.configureAdvancedPerformance();
         await this.configureAdvancedFeatures();
         await this.configureCustomHeaders();
       }
@@ -661,7 +660,7 @@ class Wizard {
         type: 'confirm',
         name: 'enableOpenFileCache',
         message: `Enable open file cache ${chalk.dim('(recommended for static sites)')}?`,
-        default: this.answers.pattern === 'static-only',
+        default: this.answers.pattern === 'static-only'
       },
       {
         type: 'number',
