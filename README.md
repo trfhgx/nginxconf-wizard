@@ -180,8 +180,6 @@ nginxconf-wizard generate --preset microservices
 
 ---
 
-## Development
-
 ### Setup
 ```bash
 git clone https://github.com/trfhgx/nginxconf-wizard.git
