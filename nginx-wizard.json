@@ -1,14 +1,12 @@
 {
   "version": "1.0.0",
   "schemaVersion": "1.0.0",
-  "generatedAt": "2025-11-13T14:58:26.373Z",
-  "updatedAt": "2025-11-13T14:58:26.373Z",
+  "generatedAt": "2025-11-13T17:26:52.191Z",
+  "updatedAt": "2025-11-13T17:26:52.192Z",
   "pattern": "ssr-with-api",
   "domain": {
     "primary": "fxshop.store",
-    "aliases": [
-      "www"
-    ],
+    "aliases": [],
     "port": 80,
     "httpsPort": 443
   },
@@ -16,13 +14,13 @@
     "enabled": true,
     "provider": "cloudflare",
     "http2": true,
-    "http3": true
+    "http3": false
   },
   "performance": {
     "profile": "cdn-origin",
     "workers": "auto",
     "connections": 1024,
-    "caching": true
+    "caching": false
   },
   "security": {
     "headers": true,
@@ -35,18 +33,19 @@
     "upstream": {
       "ssrServers": [
         {
-          "host": "localhoost",
+          "host": "localhost",
           "port": 4005
         }
       ],
       "apiServers": [
         {
           "host": "localhost",
-          "port": 8000
+          "port": 8010
         }
       ]
     },
-    "apiPath": "/api"
+    "staticAssetsPath": "/_nuxt",
+    "apiPath": "/api/"
   },
   "customDirectives": []
 }

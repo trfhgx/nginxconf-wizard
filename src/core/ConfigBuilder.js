@@ -1,5 +1,5 @@
 import TemplateEngine from './TemplateEngine.js';
-import path from 'path';
+import ConflictDetector from './ConflictDetector.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
@@ -24,6 +24,7 @@ class ConfigBuilder {
     this.errors = [];
     this.warnings = [];
     this.templateEngine = new TemplateEngine();
+    this.conflictDetector = new ConflictDetector();
   }
 
   /**
@@ -184,15 +185,23 @@ class ConfigBuilder {
 
     // Validate pattern-specific requirements
     if (['spa-with-api', 'ssr-with-api', 'microservices'].includes(this.config.pattern)) {
-      if (!this.config.features.proxy) {
+      if (!this.config.features.proxy && !this.config.features.upstream) {
         this.warnings.push(`Pattern ${this.config.pattern} typically requires proxy configuration`);
       }
     }
 
+    // Run conflict detection
+    const conflictResult = this.conflictDetector.detectConflicts(this.config);
+    if (conflictResult.hasConflicts) {
+      this.errors.push(...conflictResult.conflicts.map(c => c.message));
+    }
+    this.warnings.push(...conflictResult.warnings.map(w => w.message));
+
     return {
       valid: this.errors.length === 0,
       errors: this.errors,
-      warnings: this.warnings
+      warnings: this.warnings,
+      conflicts: conflictResult.conflicts
     };
   }
 

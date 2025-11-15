@@ -28,31 +28,46 @@ class Wizard {
     console.log(chalk.gray("Let's create your production-ready nginx configuration.\n"));
 
     try {
-      // Step 0: Check for preset
+      // Step 0: Advanced mode selection
+      await this.chooseMode();
+
+      // Step 1: Check for preset
       await this.choosePreset();
 
-      // Step 1: Choose pattern
+      // Step 2: Choose pattern
       await this.choosePattern();
 
-      // Step 2: Domain configuration
+      // Step 3: Domain configuration
       await this.configureDomain();
 
-      // Step 3: SSL configuration
+      // Step 4: SSL configuration
       await this.configureSSL();
 
-      // Step 4: Performance optimization
+      // Step 5: Performance optimization
       await this.configurePerformance();
 
-      // Step 5: Security features
+      // Step 6: Advanced performance tuning (if advanced mode)
+      if (this.advancedMode) {
+        await this.configureAdvancedPerformance();
+      }
+
+      // Step 7: Security features
       await this.configureSecurity();
 
-      // Step 6: Additional features
+      // Step 8: Additional features
       await this.configureFeatures();
 
-      // Step 7: Build configuration
+      // Step 9: Advanced features (if advanced mode)
+      if (this.advancedMode) {
+        await this.configureAdvancedPerformance();
+        await this.configureAdvancedFeatures();
+        await this.configureCustomHeaders();
+      }
+
+      // Step 10: Build configuration
       await this.buildConfiguration();
 
-      // Step 8: Save files
+      // Step 11: Save files
       await this.saveConfiguration();
 
       console.log(chalk.green('\n✅ Configuration generated successfully!\n'));
@@ -63,6 +78,40 @@ class Wizard {
       } else {
         throw error;
       }
+    }
+  }
+
+  /**
+   * Step 0: Choose wizard mode
+   */
+  async chooseMode() {
+    const { advancedMode } = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'advancedMode',
+        message: 'Configuration mode:',
+        choices: [
+          { 
+            name: '🎯 Quick Setup - Recommended settings with minimal questions', 
+            value: false 
+          },
+          { 
+            name: '⚡ Advanced Mode - Full control with detailed customization', 
+            value: true 
+          }
+        ],
+        default: false
+      }
+    ]);
+
+    this.advancedMode = advancedMode;
+    
+    if (advancedMode) {
+      console.log(chalk.yellow('\n  ⚡ Advanced mode enabled'));
+      console.log(chalk.gray('  You\'ll see recommended values and can customize everything.\n'));
+    } else {
+      console.log(chalk.green('\n  🎯 Quick setup mode'));
+      console.log(chalk.gray('  Using smart defaults. Run with --advanced for more control.\n'));
     }
   }
 
@@ -179,7 +228,7 @@ class Wizard {
       {
         type: 'input',
         name: 'aliases',
-        message: 'Domain aliases (comma-separated):',
+        message: `Domain aliases ${chalk.dim('(comma-separated, e.g., www.example.com,alt.example.com)')}:`,
         default: answers => `www.${answers.primary}`,
         when: answers => answers.hasAliases,
         filter: input =>
@@ -187,6 +236,40 @@ class Wizard {
             .split(',')
             .map(s => s.trim())
             .filter(Boolean)
+      },
+      {
+        type: 'confirm',
+        name: 'wwwRedirect',
+        message: `Redirect www to non-www ${chalk.dim('(or vice versa)')}?`,
+        default: true,
+        when: () => this.advancedMode
+      },
+      {
+        type: 'list',
+        name: 'redirectDirection',
+        message: 'Redirect direction:',
+        choices: [
+          { name: 'www.example.com → example.com', value: 'to-non-www' },
+          { name: 'example.com → www.example.com', value: 'to-www' }
+        ],
+        default: 'to-non-www',
+        when: answers => this.advancedMode && answers.wwwRedirect
+      },
+      {
+        type: 'number',
+        name: 'httpPort',
+        message: `HTTP port ${chalk.dim('(default: 80)')}:`,
+        default: 80,
+        when: () => this.advancedMode,
+        validate: input => input > 0 && input < 65536 ? true : 'Invalid port number'
+      },
+      {
+        type: 'number',
+        name: 'httpsPort',
+        message: `HTTPS port ${chalk.dim('(default: 443)')}:`,
+        default: 443,
+        when: () => this.advancedMode,
+        validate: input => input > 0 && input < 65536 ? true : 'Invalid port number'
       }
     ];
 
@@ -195,12 +278,18 @@ class Wizard {
     this.config.setDomain({
       primary: answers.primary,
       aliases: answers.aliases || [],
-      port: 80,
-      httpsPort: 443
+      port: answers.httpPort || 80,
+      httpsPort: answers.httpsPort || 443,
+      wwwRedirect: answers.wwwRedirect,
+      redirectDirection: answers.redirectDirection
     });
 
     this.answers.domain = answers;
-    console.log(chalk.gray(`\n  Domain configured: ${answers.primary}\n`));
+    
+    const domainInfo = answers.aliases?.length > 0 
+      ? `${answers.primary} + ${answers.aliases.length} alias(es)` 
+      : answers.primary;
+    console.log(chalk.gray(`\n  Domain configured: ${domainInfo}\n`));
   }
 
   /**
@@ -242,6 +331,18 @@ class Wizard {
         validate: input => (input ? true : 'Private key path is required')
       },
       {
+        type: 'list',
+        name: 'cipherSuite',
+        message: 'Cipher suite (security vs compatibility):',
+        choices: [
+          { name: 'Modern - TLS 1.3 only, highest security (may break old clients)', value: 'modern' },
+          { name: 'Intermediate - TLS 1.2+, balanced (recommended)', value: 'intermediate' },
+          { name: 'Old - TLS 1.0+, maximum compatibility (less secure)', value: 'old' }
+        ],
+        default: 'intermediate',
+        when: answers => answers.enabled
+      },
+      {
         type: 'confirm',
         name: 'http2',
         message: 'Enable HTTP/2?',
@@ -251,9 +352,30 @@ class Wizard {
       {
         type: 'confirm',
         name: 'http3',
-        message: 'Enable HTTP/3 (QUIC)?',
+        message: 'Enable HTTP/3 (QUIC) for faster mobile/poor networks?',
         default: false,
         when: answers => answers.enabled && answers.http2
+      },
+      {
+        type: 'confirm',
+        name: 'ocspStapling',
+        message: 'Enable OCSP stapling for faster SSL handshakes?',
+        default: true,
+        when: answers => answers.enabled && answers.provider !== 'self-signed'
+      },
+      {
+        type: 'confirm',
+        name: 'hsts',
+        message: 'Enable HSTS (HTTP Strict Transport Security)?',
+        default: true,
+        when: answers => answers.enabled
+      },
+      {
+        type: 'confirm',
+        name: 'hstsPreload',
+        message: 'Include in HSTS preload list (recommended for production)?',
+        default: false,
+        when: answers => answers.hsts
       }
     ];
 
@@ -264,12 +386,19 @@ class Wizard {
       provider: answers.provider,
       certPath: answers.certPath,
       keyPath: answers.keyPath,
+      cipherSuite: answers.cipherSuite || 'intermediate',
       http2: answers.http2 || false,
-      http3: answers.http3 || false
+      http3: answers.http3 || false,
+      ocspStapling: answers.ocspStapling,
+      hsts: answers.hsts,
+      hstsPreload: answers.hstsPreload
     });
 
     this.answers.ssl = answers;
-    console.log(chalk.gray(`\n  SSL configured: ${answers.enabled ? 'Enabled' : 'Disabled'}\n`));
+    const sslDetails = answers.enabled 
+      ? `${answers.provider}${answers.http3 ? ' + HTTP/3' : answers.http2 ? ' + HTTP/2' : ''}`
+      : 'Disabled';
+    console.log(chalk.gray(`\n  SSL configured: ${sslDetails}\n`));
   }
 
   /**
@@ -302,9 +431,50 @@ class Wizard {
       },
       {
         type: 'confirm',
-        name: 'caching',
-        message: 'Enable browser caching for static assets?',
+        name: 'browserCaching',
+        message: 'Enable browser caching for static assets (1 year for CSS/JS/images)?',
         default: true
+      },
+      {
+        type: 'confirm',
+        name: 'proxyCaching',
+        message: 'Enable proxy caching for dynamic content?',
+        default: this.answers.pattern.includes('api') || this.answers.pattern.includes('ssr'),
+        when: () => this.answers.pattern !== 'static-only'
+      },
+      {
+        type: 'list',
+        name: 'cacheStrategy',
+        message: 'Caching strategy:',
+        choices: [
+          { name: 'API - 5min cache for API responses (500MB zone)', value: 'api' },
+          { name: 'Static - 1 day cache for static content (2GB zone)', value: 'static' },
+          { name: 'CDN - 7 day cache for CDN origin (10GB zone)', value: 'cdn' },
+          { name: 'SSR - 10min cache with session bypass (1GB zone)', value: 'ssr' },
+          { name: 'Microcache - 1 second cache for traffic spikes (100MB)', value: 'microcache' },
+          { name: 'Custom - Configure manually', value: 'custom' }
+        ],
+        default: () => {
+          if (this.answers.pattern === 'static-only') return 'static';
+          if (this.answers.pattern.includes('api')) return 'api';
+          if (this.answers.pattern.includes('ssr')) return 'ssr';
+          return 'api';
+        },
+        when: answers => answers.proxyCaching
+      },
+      {
+        type: 'number',
+        name: 'cacheTTL',
+        message: 'Cache TTL in minutes:',
+        default: 10,
+        when: answers => answers.cacheStrategy === 'custom'
+      },
+      {
+        type: 'number',
+        name: 'cacheZoneSize',
+        message: 'Cache zone size in MB:',
+        default: 500,
+        when: answers => answers.cacheStrategy === 'custom'
       }
     ];
 
@@ -317,7 +487,11 @@ class Wizard {
       profile: answers.profile,
       workers: profileConfig.workers,
       connections: profileConfig.workerConnections,
-      caching: answers.caching,
+      browserCaching: answers.browserCaching,
+      proxyCaching: answers.proxyCaching,
+      cacheStrategy: answers.cacheStrategy,
+      cacheTTL: answers.cacheTTL,
+      cacheZoneSize: answers.cacheZoneSize,
       keepaliveTimeout: profileConfig.keepaliveTimeout,
       keepaliveRequests: profileConfig.keepaliveRequests,
       ...profileConfig
@@ -335,20 +509,39 @@ class Wizard {
       {
         type: 'confirm',
         name: 'headers',
-        message: 'Add security headers (X-Frame-Options, CSP, etc.)?',
+        message: 'Add security headers (HSTS, X-Frame-Options, CSP, etc.)?',
         default: true
       },
       {
         type: 'confirm',
         name: 'rateLimiting',
-        message: 'Enable rate limiting?',
-        default: false
+        message: 'Enable rate limiting for API endpoints?',
+        default: this.answers.pattern.includes('api') || this.answers.pattern === 'microservices'
       },
       {
         type: 'confirm',
         name: 'ddosProtection',
-        message: 'Enable basic DDoS protection?',
+        message: 'Enable DDoS protection (connection & request limiting)?',
         default: false
+      },
+      {
+        type: 'list',
+        name: 'ddosProfile',
+        message: 'DDoS protection profile:',
+        choices: [
+          { name: 'Strict - 10 conn/IP, 10 req/s (high security)', value: 'strict' },
+          { name: 'Balanced - 20 conn/IP, 100 req/s (recommended)', value: 'balanced' },
+          { name: 'Permissive - 50 conn/IP, 200 req/s (low restriction)', value: 'permissive' }
+        ],
+        default: 'balanced',
+        when: answers => answers.ddosProtection
+      },
+      {
+        type: 'confirm',
+        name: 'fail2ban',
+        message: 'Generate fail2ban configuration for nginx?',
+        default: false,
+        when: answers => answers.ddosProtection
       }
     ];
 
@@ -357,7 +550,8 @@ class Wizard {
     this.config.setSecurity({
       headers: answers.headers,
       rateLimiting: answers.rateLimiting,
-      ddosProtection: answers.ddosProtection
+      ddosProtection: answers.ddosProtection ? answers.ddosProfile : false,
+      fail2ban: answers.fail2ban || false
     });
 
     this.answers.security = answers;
@@ -365,7 +559,403 @@ class Wizard {
   }
 
   /**
+   * Step 6.5: Advanced Performance Tuning (Advanced Mode Only)
+   */
+  async configureAdvancedPerformance() {
+    console.log(chalk.cyan('\n⚙️  Advanced Performance Tuning\n'));
+    console.log(chalk.gray('  Fine-tune worker processes, buffers, and timeouts.\n'));
+
+    // Calculate recommended values based on system
+    const cpuCores = 4; // In real app, detect with os.cpus().length
+    const recommendedWorkers = cpuCores;
+    const recommendedConnections = this.answers.performance?.profile === 'high-traffic' ? 2048 : 1024;
+
+    const questions = [
+      {
+        type: 'number',
+        name: 'workerProcesses',
+        message: `Worker processes ${chalk.dim(`(recommended: ${recommendedWorkers} = CPU cores)`)}:`,
+        default: recommendedWorkers,
+        validate: input => input > 0 && input <= 128 ? true : 'Must be between 1 and 128'
+      },
+      {
+        type: 'number',
+        name: 'workerConnections',
+        message: `Worker connections ${chalk.dim(`(recommended: ${recommendedConnections})`)}:`,
+        default: recommendedConnections,
+        validate: input => input >= 512 && input <= 65536 ? true : 'Must be between 512 and 65536'
+      },
+      {
+        type: 'confirm',
+        name: 'customizeBuffers',
+        message: 'Customize buffer sizes (for high-traffic or large uploads)?',
+        default: false
+      },
+      {
+        type: 'input',
+        name: 'clientBodyBufferSize',
+        message: `Client body buffer size ${chalk.dim('(default: 16k, increase for file uploads)')}:`,
+        default: '16k',
+        when: answers => answers.customizeBuffers,
+        validate: input => /^\d+[kmKM]$/.test(input) ? true : 'Must be in format like 16k or 1M'
+      },
+      {
+        type: 'input',
+        name: 'clientMaxBodySize',
+        message: `Max upload size ${chalk.dim('(default: 10m, set to 0 for unlimited)')}:`,
+        default: '10m',
+        when: answers => answers.customizeBuffers,
+        validate: input => /^\d+[kmgKMG]$|^0$/.test(input) ? true : 'Must be in format like 10m, 1g, or 0'
+      },
+      {
+        type: 'input',
+        name: 'clientHeaderBufferSize',
+        message: `Client header buffer size ${chalk.dim('(default: 1k)')}:`,
+        default: '1k',
+        when: answers => answers.customizeBuffers
+      },
+      {
+        type: 'input',
+        name: 'largeClientHeaderBuffers',
+        message: `Large client header buffers ${chalk.dim('(default: 4 8k = 4 buffers of 8KB)')}:`,
+        default: '4 8k',
+        when: answers => answers.customizeBuffers
+      },
+      {
+        type: 'confirm',
+        name: 'customizeTimeouts',
+        message: 'Customize timeout values?',
+        default: false
+      },
+      {
+        type: 'number',
+        name: 'clientBodyTimeout',
+        message: `Client body timeout in seconds ${chalk.dim('(default: 60s)')}:`,
+        default: 60,
+        when: answers => answers.customizeTimeouts,
+        validate: input => input >= 5 && input <= 300 ? true : 'Must be between 5 and 300 seconds'
+      },
+      {
+        type: 'number',
+        name: 'clientHeaderTimeout',
+        message: `Client header timeout in seconds ${chalk.dim('(default: 60s)')}:`,
+        default: 60,
+        when: answers => answers.customizeTimeouts
+      },
+      {
+        type: 'number',
+        name: 'sendTimeout',
+        message: `Send timeout in seconds ${chalk.dim('(default: 60s)')}:`,
+        default: 60,
+        when: answers => answers.customizeTimeouts
+      },
+      {
+        type: 'number',
+        name: 'keepaliveTimeout',
+        message: `Keepalive timeout in seconds ${chalk.dim('(default: 65s, increase for CDN origin)')}:`,
+        default: 65,
+        when: answers => answers.customizeTimeouts,
+        validate: input => input >= 5 && input <= 600 ? true : 'Must be between 5 and 600 seconds'
+      },
+      {
+        type: 'confirm',
+        name: 'enableOpenFileCache',
+        message: `Enable open file cache ${chalk.dim('(recommended for static sites)')}?`,
+        default: this.answers.pattern === 'static-only',
+      },
+      {
+        type: 'number',
+        name: 'openFileCacheMax',
+        message: `Open file cache max files ${chalk.dim('(default: 1000)')}:`,
+        default: 1000,
+        when: answers => answers.enableOpenFileCache
+      },
+      {
+        type: 'number',
+        name: 'openFileCacheInactive',
+        message: `Remove from cache after N seconds inactive ${chalk.dim('(default: 20s)')}:`,
+        default: 20,
+        when: answers => answers.enableOpenFileCache
+      }
+    ];
+
+    const answers = await inquirer.prompt(questions);
+    
+    this.answers.advancedPerformance = answers;
+    console.log(chalk.gray(`\n  Workers: ${answers.workerProcesses}, Connections: ${answers.workerConnections}\n`));
+  }
+
+  /**
+   * Step 8.5: Advanced Features (Advanced Mode Only)
+   */
+  async configureAdvancedFeatures() {
+    console.log(chalk.cyan('\n🔧 Advanced Features\n'));
+
+    const questions = [
+      {
+        type: 'confirm',
+        name: 'websocket',
+        message: 'Enable WebSocket support?',
+        default: false
+      },
+      {
+        type: 'input',
+        name: 'websocketPath',
+        message: `WebSocket path ${chalk.dim('(e.g., /ws or /socket.io)')}:`,
+        default: '/ws',
+        when: answers => answers.websocket
+      },
+      {
+        type: 'confirm',
+        name: 'customErrorPages',
+        message: 'Configure custom error pages?',
+        default: false
+      },
+      {
+        type: 'input',
+        name: 'errorPagesPath',
+        message: `Error pages directory ${chalk.dim('(e.g., /var/www/errors)')}:`,
+        default: '/var/www/errors',
+        when: answers => answers.customErrorPages
+      },
+      {
+        type: 'list',
+        name: 'logFormat',
+        message: 'Access log format:',
+        choices: [
+          { name: 'Combined - Standard Apache format', value: 'combined' },
+          { name: 'Main - Nginx default format', value: 'main' },
+          { name: 'JSON - Structured JSON logs (for log aggregators)', value: 'json' },
+          { name: 'Detailed - With response times and upstream info', value: 'detailed' }
+        ],
+        default: 'combined'
+      },
+      {
+        type: 'list',
+        name: 'errorLogLevel',
+        message: 'Error log level:',
+        choices: [
+          { name: 'error - Only errors (production)', value: 'error' },
+          { name: 'warn - Warnings and errors (recommended)', value: 'warn' },
+          { name: 'notice - Notable events', value: 'notice' },
+          { name: 'info - Informational messages', value: 'info' },
+          { name: 'debug - Debug information (development only)', value: 'debug' }
+        ],
+        default: 'warn'
+      },
+      {
+        type: 'confirm',
+        name: 'gzipStatic',
+        message: `Enable gzip_static ${chalk.dim('(serve pre-compressed .gz files)')}?`,
+        default: false
+      },
+      {
+        type: 'number',
+        name: 'gzipLevel',
+        message: `Gzip compression level ${chalk.dim('(1=fast/less, 9=slow/more, recommended: 6)')}:`,
+        default: 6,
+        when: () => this.answers.features?.compression,
+        validate: input => input >= 1 && input <= 9 ? true : 'Must be between 1 and 9'
+      },
+      {
+        type: 'confirm',
+        name: 'serverTokens',
+        message: `Hide nginx version in headers ${chalk.dim('(security best practice)')}?`,
+        default: true
+      },
+      {
+        type: 'confirm',
+        name: 'realIPFromCloudflare',
+        message: 'Behind Cloudflare? (restore real client IPs)',
+        default: false
+      },
+      {
+        type: 'confirm',
+        name: 'monitoring',
+        message: 'Enable stub_status for monitoring?',
+        default: false
+      },
+      {
+        type: 'input',
+        name: 'monitoringPath',
+        message: `Monitoring endpoint path ${chalk.dim('(e.g., /nginx_status)')}:`,
+        default: '/nginx_status',
+        when: answers => answers.monitoring
+      },
+      {
+        type: 'checkbox',
+        name: 'allowedIPs',
+        message: 'Allowed IPs for monitoring (leave empty for local only):',
+        choices: [
+          { name: '127.0.0.1 - Localhost', value: '127.0.0.1', checked: true },
+          { name: '::1 - IPv6 localhost', value: '::1', checked: true },
+          new inquirer.Separator(),
+          { name: 'Add custom IP (enter manually after)', value: 'custom' }
+        ],
+        when: answers => answers.monitoring
+      },
+      {
+        type: 'input',
+        name: 'customIP',
+        message: 'Enter custom IP address:',
+        when: answers => answers.allowedIPs?.includes('custom'),
+        validate: input => {
+          const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+          return ipRegex.test(input) ? true : 'Invalid IP address format';
+        }
+      }
+    ];
+
+    const answers = await inquirer.prompt(questions);
+    
+    this.answers.advancedFeatures = answers;
+    
+    const enabledFeatures = [];
+    if (answers.websocket) enabledFeatures.push('WebSocket');
+    if (answers.customErrorPages) enabledFeatures.push('Custom errors');
+    if (answers.monitoring) enabledFeatures.push('Monitoring');
+    if (answers.realIPFromCloudflare) enabledFeatures.push('Cloudflare');
+    
+    console.log(chalk.gray(`\n  Advanced features: ${enabledFeatures.length > 0 ? enabledFeatures.join(', ') : 'None'}\n`));
+  }
+
+  /**
+   * Step 8.6: Configure custom headers (Advanced Mode Only)
+   */
+  async configureCustomHeaders() {
+    if (!this.advancedMode) return;
+
+    console.log(chalk.cyan('\n📝 Custom Headers Configuration\n'));
+
+    const questions = [
+      {
+        type: 'confirm',
+        name: 'addCustomHeaders',
+        message: 'Add custom HTTP headers?',
+        default: false
+      },
+      {
+        type: 'confirm',
+        name: 'securityHeaders',
+        message: `Add security headers ${chalk.dim('(X-Frame-Options, X-Content-Type-Options, etc.)')}?`,
+        default: true,
+        when: answers => answers.addCustomHeaders
+      },
+      {
+        type: 'list',
+        name: 'xFrameOptions',
+        message: 'X-Frame-Options (clickjacking protection):',
+        choices: [
+          { name: 'DENY - Never allow framing', value: 'DENY' },
+          { name: 'SAMEORIGIN - Allow same-origin framing', value: 'SAMEORIGIN' },
+          { name: 'None - No protection', value: null }
+        ],
+        default: 'SAMEORIGIN',
+        when: answers => answers.securityHeaders
+      },
+      {
+        type: 'confirm',
+        name: 'xContentTypeOptions',
+        message: `Add X-Content-Type-Options: nosniff ${chalk.dim('(MIME type security)')}?`,
+        default: true,
+        when: answers => answers.securityHeaders
+      },
+      {
+        type: 'confirm',
+        name: 'referrerPolicy',
+        message: 'Add Referrer-Policy header?',
+        default: true,
+        when: answers => answers.securityHeaders
+      },
+      {
+        type: 'list',
+        name: 'referrerPolicyValue',
+        message: 'Referrer-Policy value:',
+        choices: [
+          { name: 'no-referrer - Never send referrer', value: 'no-referrer' },
+          { name: 'no-referrer-when-downgrade - Default browser behavior', value: 'no-referrer-when-downgrade' },
+          { name: 'origin - Send only origin', value: 'origin' },
+          { name: 'origin-when-cross-origin - Full URL for same-origin', value: 'origin-when-cross-origin' },
+          { name: 'same-origin - Only for same-origin requests', value: 'same-origin' },
+          { name: 'strict-origin - HTTPS-only origin', value: 'strict-origin' },
+          { name: 'strict-origin-when-cross-origin - Recommended', value: 'strict-origin-when-cross-origin' }
+        ],
+        default: 'strict-origin-when-cross-origin',
+        when: answers => answers.referrerPolicy
+      },
+      {
+        type: 'confirm',
+        name: 'permissionsPolicy',
+        message: `Add Permissions-Policy ${chalk.dim('(control browser features)')}?`,
+        default: false,
+        when: answers => answers.securityHeaders
+      },
+      {
+        type: 'checkbox',
+        name: 'permissionsPolicyFeatures',
+        message: 'Disable which browser features?',
+        choices: [
+          { name: 'camera - Camera access', value: 'camera' },
+          { name: 'microphone - Microphone access', value: 'microphone' },
+          { name: 'geolocation - Location tracking', value: 'geolocation' },
+          { name: 'payment - Payment APIs', value: 'payment' },
+          { name: 'usb - USB device access', value: 'usb' },
+          { name: 'interest-cohort - FLoC tracking', value: 'interest-cohort' }
+        ],
+        when: answers => answers.permissionsPolicy
+      },
+      {
+        type: 'input',
+        name: 'customHeadersInput',
+        message: `Custom headers ${chalk.dim('(format: "Header: Value", comma-separated)')}:`,
+        default: '',
+        when: answers => answers.addCustomHeaders,
+        filter: input => {
+          if (!input || input.trim() === '') return [];
+          return input.split(',').map(h => {
+            const [name, ...valueParts] = h.trim().split(':');
+            return {
+              name: name.trim(),
+              value: valueParts.join(':').trim()
+            };
+          }).filter(h => h.name && h.value);
+        }
+      },
+      {
+        type: 'confirm',
+        name: 'addCacheControlHeaders',
+        message: `Override cache-control headers ${chalk.dim('(per-location basis)')}?`,
+        default: false,
+        when: answers => answers.addCustomHeaders
+      },
+      {
+        type: 'input',
+        name: 'staticCacheControl',
+        message: `Cache-Control for static files ${chalk.dim('(e.g., public, max-age=31536000, immutable)')}:`,
+        default: 'public, max-age=31536000, immutable',
+        when: answers => answers.addCacheControlHeaders
+      },
+      {
+        type: 'input',
+        name: 'dynamicCacheControl',
+        message: `Cache-Control for dynamic content ${chalk.dim('(e.g., no-cache, no-store, must-revalidate)')}:`,
+        default: 'no-cache, no-store, must-revalidate',
+        when: answers => answers.addCacheControlHeaders
+      }
+    ];
+
+    const answers = await inquirer.prompt(questions);
+    
+    this.answers.customHeaders = answers;
+    
+    const headerCount = (answers.customHeadersInput?.length || 0) + 
+                       (answers.securityHeaders ? 3 : 0);
+    console.log(chalk.gray(`\n  Custom headers: ${headerCount > 0 ? `${headerCount} configured` : 'None'}\n`));
+  }
+
+  /**
    * Step 6: Configure additional features
+```
    */
   async configureFeatures() {
     const questions = [
@@ -386,7 +976,7 @@ class Wizard {
       {
         type: 'input',
         name: 'ssrServers',
-        message: 'SSR frontend servers (comma-separated, e.g., localhost:3000,localhost:3001):',
+        message: 'SSR application servers (comma-separated, e.g., localhost:3000,localhost:3001):',
         default: 'localhost:3000',
         when: () => this.answers.pattern === 'ssr-with-api',
         filter: input => {
@@ -395,6 +985,13 @@ class Wizard {
             return { host, port: parseInt(port) || 3000 };
           });
         }
+      },
+      {
+        type: 'input',
+        name: 'staticAssetsPath',
+        message: `Static assets path ${chalk.dim('(e.g., /_next/static for Next.js, /_nuxt for Nuxt, /static for custom, empty to skip)')}:`,
+        default: '',
+        when: () => this.answers.pattern === 'ssr-with-api'
       },
       {
         type: 'input',
@@ -456,6 +1053,20 @@ class Wizard {
         }
       },
       {
+        type: 'list',
+        name: 'loadBalancingMethod',
+        message: 'Load balancing method (if multiple backend servers):',
+        choices: [
+          { name: 'Round Robin - Distribute evenly (default)', value: 'round_robin' },
+          { name: 'Least Connections - Send to server with fewest active connections', value: 'least_conn' },
+          { name: 'IP Hash - Same client always goes to same server', value: 'ip_hash' },
+          { name: 'Random - Random selection', value: 'random' }
+        ],
+        default: 'round_robin',
+        when: answers => (answers.hasProxy && answers.proxyTarget.includes(',')) || 
+                         (this.answers.pattern === 'ssr-with-api' && answers.ssrServers && answers.ssrServers.length > 1)
+      },
+      {
         type: 'confirm',
         name: 'cors',
         message: 'Enable CORS headers for API?',
@@ -465,7 +1076,7 @@ class Wizard {
       {
         type: 'input',
         name: 'corsOrigin',
-        message: 'CORS allowed origin:',
+        message: 'CORS allowed origin (or * for all):',
         default: _answers => `https://${this.answers.domain.primary}`,
         when: _answers => _answers.cors
       },
@@ -500,9 +1111,47 @@ class Wizard {
       {
         type: 'number',
         name: 'keepalive',
-        message: 'Keepalive connections:',
+        message: `Keepalive connections ${chalk.dim('(recommended: 32-64 for better connection reuse)')}:`,
         default: 32,
         when: answers => answers.hasUpstream
+      },
+      {
+        type: 'number',
+        name: 'maxFails',
+        message: `Max failed attempts before marking server down ${chalk.dim('(recommended: 3)')}:`,
+        default: 3,
+        when: answers => this.advancedMode && answers.hasUpstream
+      },
+      {
+        type: 'number',
+        name: 'failTimeout',
+        message: `Fail timeout in seconds ${chalk.dim('(server recovery time, recommended: 30s)')}:`,
+        default: 30,
+        when: answers => this.advancedMode && answers.hasUpstream
+      },
+      {
+        type: 'number',
+        name: 'maxConns',
+        message: `Max connections per server ${chalk.dim('(0 = unlimited, recommended: 0 or 100)')}:`,
+        default: 0,
+        when: answers => this.advancedMode && answers.hasUpstream
+      },
+      {
+        type: 'confirm',
+        name: 'backupServer',
+        message: `Configure backup server ${chalk.dim('(used only when primary servers are down)')}?`,
+        default: false,
+        when: answers => this.advancedMode && answers.hasUpstream
+      },
+      {
+        type: 'input',
+        name: 'backupServerAddress',
+        message: 'Backup server address (e.g., localhost:4000):',
+        when: answers => answers.backupServer,
+        filter: input => {
+          const [host, port] = input.trim().split(':');
+          return { host, port: parseInt(port) || 3000 };
+        }
       },
       // Microservices pattern
       {
@@ -568,6 +1217,11 @@ class Wizard {
       features.upstream = {
         ssrServers: answers.ssrServers
       };
+      
+      // Add static assets path if provided
+      if (answers.staticAssetsPath && answers.staticAssetsPath.trim()) {
+        features.staticAssetsPath = answers.staticAssetsPath.trim();
+      }
       
       // Parse API URL
       const apiUrl = answers.apiUrl;

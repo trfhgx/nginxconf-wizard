@@ -1,10 +1,10 @@
 # Nginx Configuration for {{domain.primary}}
-# Pattern: SSR with API Backend (Next.js, Nuxt, etc.)
+# Pattern: SSR with API Backend
 # Generated: {{generatedAt}}
 
 {{#if features.upstream}}
-# Upstream SSR Server
-upstream ssr_backend {
+# Upstream SSR Application Server
+upstream ssr_app {
     {{#each features.upstream.ssrServers}}
     server {{this.host}}:{{this.port}}{{#if this.weight}} weight={{this.weight}}{{/if}}{{#if this.maxFails}} max_fails={{this.maxFails}}{{/if}}{{#if this.failTimeout}} fail_timeout={{this.failTimeout}}{{/if}};
     {{/each}}
@@ -15,7 +15,7 @@ upstream ssr_backend {
 
 {{#if features.upstream.apiServers}}
 # Upstream API Server
-upstream api_backend {
+upstream api_server {
     {{#each features.upstream.apiServers}}
     server {{this.host}}:{{this.port}}{{#if this.weight}} weight={{this.weight}}{{/if}}{{#if this.maxFails}} max_fails={{this.maxFails}}{{/if}}{{#if this.failTimeout}} fail_timeout={{this.failTimeout}}{{/if}};
     {{/each}}
@@ -37,9 +37,13 @@ server {
 
 # HTTPS Server
 server {
-    listen {{domain.httpsPort}} ssl{{#if ssl.http2}} http2{{/if}}{{#if ssl.http3}} http3{{/if}};
-    listen [::]:{{domain.httpsPort}} ssl{{#if ssl.http2}} http2{{/if}}{{#if ssl.http3}} http3{{/if}};
+    listen {{domain.httpsPort}} ssl{{#if ssl.http3}} http3{{/if}};
+    listen [::]:{{domain.httpsPort}} ssl{{#if ssl.http3}} http3{{/if}};
     server_name {{domain.primary}}{{#each domain.aliases}} {{this}}{{/each}};
+
+    {{#if ssl.http2}}
+    http2 on;
+    {{/if}}
 
     # SSL Configuration
     {{#if (eq ssl.provider "letsencrypt")}}
@@ -47,8 +51,16 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/{{domain.primary}}/privkey.pem;
     ssl_trusted_certificate /etc/letsencrypt/live/{{domain.primary}}/chain.pem;
     {{else if (eq ssl.provider "custom")}}
-    ssl_certificate {{ssl.certPath}};
-    ssl_certificate_key {{ssl.keyPath}};
+    ssl_certificate /etc/nginx/ssl/{{domain.primary}}/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/{{domain.primary}}/key.pem;
+    {{else if (eq ssl.provider "self-signed")}}
+    ssl_certificate /etc/nginx/ssl/{{domain.primary}}/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/{{domain.primary}}/key.pem;
+    {{else if (eq ssl.provider "cloudflare")}}
+    ssl_certificate /etc/nginx/ssl/{{domain.primary}}/cloudflare.pem;
+    ssl_certificate_key /etc/nginx/ssl/{{domain.primary}}/cloudflare.key;
+    ssl_client_certificate /etc/nginx/ssl/cloudflare/origin-pull-ca.pem;
+    ssl_verify_client on;
     {{/if}}
 
     ssl_protocols {{sslProtocols ssl.http2 ssl.http3}};
@@ -57,10 +69,12 @@ server {
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;
     ssl_session_tickets off;
+    {{#if (eq ssl.provider "letsencrypt")}}
     ssl_stapling on;
     ssl_stapling_verify on;
     resolver 8.8.8.8 8.8.4.4 valid=300s;
     resolver_timeout 5s;
+    {{/if}}
 
     {{#if ssl.http3}}
     add_header Alt-Svc 'h3=":{{domain.httpsPort}}"; ma=86400';
@@ -88,7 +102,7 @@ server {
     # API Routes
     location {{features.apiPath}} {
         {{#if features.upstream.apiServers}}
-        proxy_pass http://api_backend;
+        proxy_pass http://api_server;
         {{else}}
         proxy_pass {{features.apiTarget}};
         {{/if}}
@@ -110,10 +124,11 @@ server {
         {{/if}}
     }
 
-    # Static Assets (_next/static, assets, etc.)
-    location /_next/static {
+    {{#if features.staticAssetsPath}}
+    # Static Assets ({{features.staticAssetsPath}})
+    location {{features.staticAssetsPath}} {
         {{#if features.upstream}}
-        proxy_pass http://ssr_backend;
+        proxy_pass http://ssr_app;
         {{else}}
         proxy_pass http://localhost:3000;
         {{/if}}
@@ -122,23 +137,12 @@ server {
         add_header Cache-Control "public, immutable";
         access_log off;
     }
+    {{/if}}
 
-    location /static {
-        {{#if features.upstream}}
-        proxy_pass http://ssr_backend;
-        {{else}}
-        proxy_pass http://localhost:3000;
-        {{/if}}
-        
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-
-    # SSR Pages
+    # SSR Application
     location / {
         {{#if features.upstream}}
-        proxy_pass http://ssr_backend;
+        proxy_pass http://ssr_app;
         {{else}}
         proxy_pass http://localhost:3000;
         {{/if}}
@@ -161,7 +165,7 @@ server {
         gzip_vary on;
         gzip_proxied any;
         gzip_comp_level 6;
-        gzip_types text/html text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss;
+        gzip_types text/plain text/css text/xml text/javascript application/json application/javascript application/xml+rss;
         {{/if}}
     }
 

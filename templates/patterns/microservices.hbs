@@ -31,9 +31,13 @@ server {
 }
 
 server {
-    listen {{domain.httpsPort}} ssl{{#if ssl.http2}} http2{{/if}}{{#if ssl.http3}} http3{{/if}};
-    listen [::]:{{domain.httpsPort}} ssl{{#if ssl.http2}} http2{{/if}}{{#if ssl.http3}} http3{{/if}};
+    listen {{domain.httpsPort}} ssl{{#if ssl.http3}} http3{{/if}};
+    listen [::]:{{domain.httpsPort}} ssl{{#if ssl.http3}} http3{{/if}};
     server_name {{domain.primary}}{{#each domain.aliases}} {{this}}{{/each}};
+
+    {{#if ssl.http2}}
+    http2 on;
+    {{/if}}
 
     # SSL Configuration
     {{#if (eq ssl.provider "letsencrypt")}}
@@ -41,8 +45,16 @@ server {
     ssl_certificate_key /etc/letsencrypt/live/{{domain.primary}}/privkey.pem;
     ssl_trusted_certificate /etc/letsencrypt/live/{{domain.primary}}/chain.pem;
     {{else if (eq ssl.provider "custom")}}
-    ssl_certificate {{ssl.certPath}};
-    ssl_certificate_key {{ssl.keyPath}};
+    ssl_certificate /etc/nginx/ssl/{{domain.primary}}/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/{{domain.primary}}/key.pem;
+    {{else if (eq ssl.provider "self-signed")}}
+    ssl_certificate /etc/nginx/ssl/{{domain.primary}}/cert.pem;
+    ssl_certificate_key /etc/nginx/ssl/{{domain.primary}}/key.pem;
+    {{else if (eq ssl.provider "cloudflare")}}
+    ssl_certificate /etc/nginx/ssl/{{domain.primary}}/cloudflare.pem;
+    ssl_certificate_key /etc/nginx/ssl/{{domain.primary}}/cloudflare.key;
+    ssl_client_certificate /etc/nginx/ssl/cloudflare/origin-pull-ca.pem;
+    ssl_verify_client on;
     {{/if}}
 
     ssl_protocols {{sslProtocols ssl.http2 ssl.http3}};
@@ -51,6 +63,14 @@ server {
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;
     ssl_session_tickets off;
+
+    {{#if (eq ssl.provider "letsencrypt")}}
+    # OCSP Stapling (only for Let's Encrypt)
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+    {{/if}}
 {{else}}
 server {
     listen {{domain.port}};

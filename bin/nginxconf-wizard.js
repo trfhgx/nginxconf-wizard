@@ -9,6 +9,9 @@ import { dirname, join } from 'path';
 import Wizard from '../src/cli/Wizard.js';
 import { validateConfig } from '../src/cli/validate.js';
 import { testConfig } from '../src/cli/test.js';
+import BenchmarkAnalyzer from '../src/analyzers/BenchmarkAnalyzer.js';
+import LogAnalyzer from '../src/analyzers/LogAnalyzer.js';
+import UpdateManager from '../src/core/UpdateManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -51,8 +54,13 @@ program
   .option('-s, --state <file>', 'State file location', './nginx-wizard.json')
   .option('--auto-apply', 'Automatically apply updates without confirmation')
   .action(async (options) => {
-    console.log(chalk.yellow('🚧 Update command coming in Phase 2/3'));
-    console.log(chalk.gray('This will allow you to update configs with evolving best practices'));
+    try {
+      const manager = new UpdateManager(options.state);
+      await manager.applyUpdates(options.autoApply);
+    } catch (error) {
+      console.error(chalk.red('Error:'), error.message);
+      process.exit(1);
+    }
   });
 
 // Check updates command
@@ -61,27 +69,85 @@ program
   .description('Check for available configuration updates')
   .option('-s, --state <file>', 'State file location', './nginx-wizard.json')
   .action(async (options) => {
-    console.log(chalk.yellow('🚧 Check-updates command coming in Phase 2/3'));
+    try {
+      const manager = new UpdateManager(options.state);
+      const updateInfo = manager.checkForUpdates();
+      manager.displayUpdates(updateInfo);
+
+      if (updateInfo.hasUpdates) {
+        console.log(chalk.yellow('\n� Run "nginxconf-wizard update" to apply updates'));
+      }
+    } catch (error) {
+      console.error(chalk.red('Error:'), error.message);
+      process.exit(1);
+    }
   });
 
 // Analyze logs command
 program
   .command('analyze-logs <logfile>')
   .description('Analyze nginx logs for optimization recommendations')
+  .option('-t, --type <type>', 'Log type (access or error), auto-detected by default')
   .option('--error <file>', 'Error log file')
   .action(async (logfile, options) => {
-    console.log(chalk.yellow('🚧 Log analysis coming in Phase 4 (Enterprise)'));
-    console.log(chalk.gray('This will provide AI-powered recommendations from production logs'));
+    try {
+      console.log(chalk.blue('📋 Analyzing nginx logs...\n'));
+
+      // Read log file
+      const content = readFileSync(logfile, 'utf-8');
+
+      // Analyze
+      const analyzer = new LogAnalyzer();
+      const results = analyzer.analyze(content, options.type || 'auto');
+
+      // Display results
+      console.log(analyzer.formatResults(results));
+
+      // If error log is also provided
+      if (options.error) {
+        console.log(chalk.blue('\n📋 Analyzing error log...\n'));
+        const errorContent = readFileSync(options.error, 'utf-8');
+        const errorResults = analyzer.analyze(errorContent, 'error');
+        console.log(analyzer.formatResults(errorResults));
+      }
+
+      console.log(chalk.green('\n✅ Analysis complete!'));
+    } catch (error) {
+      console.error(chalk.red('Error:'), error.message);
+      process.exit(1);
+    }
   });
 
 // Analyze benchmark command
 program
   .command('analyze-benchmark <results>')
   .description('Analyze benchmark results and suggest optimizations')
-  .option('--apply', 'Apply recommendations automatically')
+  .option('-t, --tool <tool>', 'Benchmark tool (wrk, ab, k6, autocannon, siege), auto-detected by default')
+  .option('--apply', 'Apply recommendations automatically (not yet implemented)')
   .action(async (results, options) => {
-    console.log(chalk.yellow('🚧 Benchmark analysis coming in Phase 3'));
-    console.log(chalk.gray('This will analyze wrk/ab results for performance tuning'));
+    try {
+      console.log(chalk.blue('📊 Analyzing benchmark results...\n'));
+
+      // Read benchmark results
+      const content = readFileSync(results, 'utf-8');
+
+      // Analyze
+      const analyzer = new BenchmarkAnalyzer();
+      const analysisResults = analyzer.analyze(content, options.tool || 'auto');
+
+      // Display results
+      console.log(analyzer.formatResults(analysisResults));
+
+      if (options.apply) {
+        console.log(chalk.yellow('\n⚠️  Auto-apply feature coming soon!'));
+        console.log(chalk.gray('This will automatically update your nginx config based on recommendations'));
+      }
+
+      console.log(chalk.green('\n✅ Analysis complete!'));
+    } catch (error) {
+      console.error(chalk.red('Error:'), error.message);
+      process.exit(1);
+    }
   });
 
 // Validate command

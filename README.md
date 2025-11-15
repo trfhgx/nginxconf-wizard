@@ -87,23 +87,74 @@ nginxconf-wizard test nginx.conf
 
 Runs `nginx -t` and provides helpful error messages.
 
-### Update Existing Config (Coming in Phase 2/3)
+### Update Existing Config
 
 ```bash
+# Check for available updates
+nginxconf-wizard check-updates
+
+# Apply updates interactively
 nginxconf-wizard update
+
+# Auto-apply all updates
+nginxconf-wizard update --auto-apply
+
+# Use custom state file location
+nginxconf-wizard update --state /path/to/nginx-wizard.json
 ```
 
-### Analyze Logs (Coming in Phase 4)
+The update system tracks your configuration in `nginx-wizard.json` and recommends:
+- **Security updates**: Outdated TLS versions, missing security headers, rate limiting
+- **Performance updates**: HTTP/3, compression, caching optimizations
+- **Feature updates**: DDoS protection, CORS, new capabilities
+
+### Analyze Logs
 
 ```bash
+# Analyze access logs
 nginxconf-wizard analyze-logs /var/log/nginx/access.log
+
+# Analyze error logs
+nginxconf-wizard analyze-logs /var/log/nginx/error.log --type error
+
+# Analyze both
+nginxconf-wizard analyze-logs access.log --error error.log
 ```
 
-### Analyze Benchmarks (Coming in Phase 3)
+Provides insights on:
+- Status code distribution (2xx, 4xx, 5xx rates)
+- Response time statistics (avg, median, P95, P99)
+- Top requested paths
+- Bot traffic detection
+- Security issues (SQL injection, path traversal attempts)
+- Performance and security recommendations
+
+### Analyze Benchmarks
 
 ```bash
+# Analyze wrk results
 nginxconf-wizard analyze-benchmark results.txt
+
+# Specify tool explicitly
+nginxconf-wizard analyze-benchmark results.txt --tool wrk
+
+# Auto-apply recommendations (coming soon)
+nginxconf-wizard analyze-benchmark results.txt --apply
 ```
+
+Supports benchmark tools:
+- **wrk** - Modern HTTP benchmarking tool
+- **ab** (ApacheBench) - Apache HTTP server benchmarking
+- **k6** - Modern load testing tool
+- **autocannon** - Node.js HTTP benchmarking
+- **siege** - HTTP load testing and benchmarking
+
+Provides:
+- Performance grade (A-F)
+- Latency analysis (avg, P95, P99)
+- Throughput metrics
+- Error rate analysis
+- Actionable recommendations for nginx tuning
 
 ## Performance Profiles
 
@@ -206,15 +257,200 @@ Next steps:
 
 ## Development
 
+### Local Setup
+
+Clone and set up the project for local development:
+
 ```bash
-# Run tests
+# Clone the repository
+git clone https://github.com/trfhgx/nginxconf-wizard.git
+cd nginxconf-wizard
+
+# Install dependencies
+npm install
+
+# Link for local development (allows you to run `nginxconf-wizard` globally)
+npm link
+
+# Now you can use it locally
+nginxconf-wizard --help
+```
+
+### Running Locally
+
+After linking with `npm link`, you can run the wizard from anywhere:
+
+```bash
+# Interactive mode (recommended)
+nginxconf-wizard
+
+# Or use the generate command
+nginxconf-wizard generate
+
+# With a preset
+nginxconf-wizard generate --preset nextjs
+
+# With a performance profile
+nginxconf-wizard generate --profile high-traffic
+
+# Validate a configuration
+nginxconf-wizard validate nginx.conf
+
+# Test with nginx
+nginxconf-wizard test nginx.conf
+```
+
+### Development Commands
+
+```bash
+# Run all tests
 npm test
 
-# Lint code
+# Run tests in watch mode (during development)
+npm test -- --watch
+
+# Run tests with coverage
+npm test -- --coverage
+
+# Lint code (check for issues)
 npm run lint
 
-# Format code
+# Lint and auto-fix issues
+npm run lint -- --fix
+
+# Format code (if formatter is configured)
 npm run format
+
+# Run a single test file
+npm test -- ConfigBuilder.test.js
+
+# Run tests matching a pattern
+npm test -- --testNamePattern="SSL configuration"
+```
+
+### Testing Your Changes
+
+After making changes to the code:
+
+```bash
+# 1. Run tests to ensure nothing broke
+npm test
+
+# 2. Fix any linting issues
+npm run lint -- --fix
+
+# 3. Generate a test config to verify output
+nginxconf-wizard generate --preset nextjs
+
+# 4. Validate the generated config
+nginxconf-wizard validate nginx.conf
+
+# 5. Test with nginx (requires nginx installed)
+nginxconf-wizard test nginx.conf
+```
+
+### Project Structure
+
+```
+nginxconf-wizard/
+├── src/
+│   ├── cli/              # CLI commands and wizard
+│   │   ├── index.js      # Main CLI entry point
+│   │   └── Wizard.js     # Interactive wizard
+│   ├── core/             # Core functionality
+│   │   ├── ConfigBuilder.js      # Main config builder
+│   │   ├── TemplateEngine.js     # Handlebars template engine
+│   │   ├── Validator.js          # Config validation
+│   │   ├── SmartConfigManager.js # Performance profiles
+│   │   ├── CacheManager.js       # Caching strategies (Phase 2)
+│   │   ├── DDoSProtection.js     # DDoS protection (Phase 2)
+│   │   └── ConflictDetector.js   # Conflict detection (Phase 2)
+│   ├── presets/          # Framework presets
+│   └── utils/            # Utility functions
+├── templates/            # Handlebars templates
+│   └── patterns/         # Pattern-specific templates
+├── tests/                # Jest test suites
+├── docs/                 # Comprehensive documentation
+└── package.json
+```
+
+### Debugging
+
+Enable debug output during development:
+
+```bash
+# Set debug environment variable (if implemented)
+DEBUG=nginxconf-wizard:* nginxconf-wizard generate
+
+# Or run with Node.js debugging
+node --inspect bin/nginxconf-wizard.js generate
+```
+
+### Adding New Features
+
+1. **Create/modify core module** in `src/core/`
+2. **Add tests** in `tests/` (aim for >80% coverage)
+3. **Update templates** in `templates/patterns/` if needed
+4. **Update documentation** in `docs/`
+5. **Run test suite**: `npm test`
+6. **Test manually**: Generate configs with your changes
+
+### Contributing
+
+When submitting changes:
+
+```bash
+# 1. Create a feature branch
+git checkout -b feature/my-new-feature
+
+# 2. Make your changes
+# ... edit files ...
+
+# 3. Run tests and linting
+npm test
+npm run lint -- --fix
+
+# 4. Commit changes
+git add .
+git commit -m "feat: add new feature"
+
+# 5. Push and create PR
+git push origin feature/my-new-feature
+```
+
+### Commit Message Convention
+
+Follow conventional commits:
+
+- `feat:` - New feature
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `test:` - Adding/updating tests
+- `refactor:` - Code refactoring
+- `perf:` - Performance improvements
+- `chore:` - Build/tooling changes
+
+Examples:
+```bash
+git commit -m "feat: add HTTP/3 support"
+git commit -m "fix: resolve port conflict detection"
+git commit -m "docs: update SSL configuration guide"
+git commit -m "test: add CacheManager test suite"
+```
+
+### Unlink Development Version
+
+When you're done with local development:
+
+```bash
+# Unlink the local version
+npm unlink
+
+# Or unlink globally
+npm unlink -g nginxconf-wizard
+
+# Then reinstall the published version (when available)
+npm install -g nginxconf-wizard
 ```
 
 ## License
