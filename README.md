@@ -142,8 +142,6 @@ nginxconf-wizard test nginx.conf
 
 ---
 
-## Examples
-
 ### Next.js Production Setup
 ```bash
 nginxconf-wizard generate --preset nextjs --profile api-gateway
