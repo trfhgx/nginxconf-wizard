@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Wizard from '../src/cli/Wizard.js';
+import TreeWizard from '../src/cli/TreeWizard.js';
 import { validateConfig } from '../src/cli/validate.js';
 import { testConfig } from '../src/cli/test.js';
 import BenchmarkAnalyzer from '../src/analyzers/BenchmarkAnalyzer.js';
@@ -31,8 +32,29 @@ program
 
 // Main generate command (interactive wizard)
 program
-  .command('generate', { isDefault: true })
+  .command('generate')
   .description('Generate nginx configuration using interactive wizard')
+  .option('-o, --output <directory>', 'Output directory', './')
+  .option('-p, --preset <name>', 'Use a preset configuration')
+  .option('--profile <profile>', 'Performance profile (high-traffic, low-resource, cdn-origin, etc.)')
+  .option('--no-validation', 'Skip configuration validation')
+  .option('--classic', 'Use classic pattern-based wizard instead of tree mode')
+  .action(async (options) => {
+    try {
+      // Use TreeWizard by default, classic Wizard with --classic flag
+      const WizardClass = options.classic ? Wizard : TreeWizard;
+      const wizard = new WizardClass(options);
+      await wizard.run();
+    } catch (error) {
+      console.error(chalk.red('Error:'), error.message);
+      process.exit(1);
+    }
+  });
+
+// Classic wizard command (explicit)
+program
+  .command('classic')
+  .description('Generate nginx configuration using classic pattern-based wizard')
   .option('-o, --output <directory>', 'Output directory', './')
   .option('-p, --preset <name>', 'Use a preset configuration')
   .option('--profile <profile>', 'Performance profile (high-traffic, low-resource, cdn-origin, etc.)')
@@ -75,7 +97,7 @@ program
       manager.displayUpdates(updateInfo);
 
       if (updateInfo.hasUpdates) {
-        console.log(chalk.yellow('\n� Run "nginxconf-wizard update" to apply updates'));
+        console.log(chalk.yellow('\nRun "nginxconf-wizard update" to apply updates'));
       }
     } catch (error) {
       console.error(chalk.red('Error:'), error.message);
@@ -91,7 +113,7 @@ program
   .option('--error <file>', 'Error log file')
   .action(async (logfile, options) => {
     try {
-      console.log(chalk.blue('📋 Analyzing nginx logs...\n'));
+      console.log(chalk.blue('Analyzing nginx logs...\n'));
 
       // Read log file
       const content = readFileSync(logfile, 'utf-8');
@@ -105,13 +127,13 @@ program
 
       // If error log is also provided
       if (options.error) {
-        console.log(chalk.blue('\n📋 Analyzing error log...\n'));
+        console.log(chalk.blue('\nAnalyzing error log...\n'));
         const errorContent = readFileSync(options.error, 'utf-8');
         const errorResults = analyzer.analyze(errorContent, 'error');
         console.log(analyzer.formatResults(errorResults));
       }
 
-      console.log(chalk.green('\n✅ Analysis complete!'));
+      console.log(chalk.green('\nAnalysis complete!'));
     } catch (error) {
       console.error(chalk.red('Error:'), error.message);
       process.exit(1);
@@ -126,7 +148,7 @@ program
   .option('--apply', 'Apply recommendations automatically (not yet implemented)')
   .action(async (results, options) => {
     try {
-      console.log(chalk.blue('📊 Analyzing benchmark results...\n'));
+      console.log(chalk.blue('Analyzing benchmark results...\n'));
 
       // Read benchmark results
       const content = readFileSync(results, 'utf-8');
@@ -139,11 +161,11 @@ program
       console.log(analyzer.formatResults(analysisResults));
 
       if (options.apply) {
-        console.log(chalk.yellow('\n⚠️  Auto-apply feature coming soon!'));
+        console.log(chalk.yellow('\nAuto-apply feature coming soon!'));
         console.log(chalk.gray('This will automatically update your nginx config based on recommendations'));
       }
 
-      console.log(chalk.green('\n✅ Analysis complete!'));
+      console.log(chalk.green('\nAnalysis complete!'));
     } catch (error) {
       console.error(chalk.red('Error:'), error.message);
       process.exit(1);
@@ -178,28 +200,4 @@ program
     }
   });
 
-// Display banner
-function showBanner() {
-  console.log(chalk.cyan(`
-╔═══════════════════════════════════════════╗
-║                                           ║
-║     🔧 Nginx Configuration Wizard 🔧     ║
-║                                           ║
-║   Generate production-ready configs       ║
-║   in minutes, not hours                   ║
-║                                           ║
-╚═══════════════════════════════════════════╝
-  `));
-}
-
-// Show banner on direct invocation
-if (process.argv.length === 2) {
-  showBanner();
-}
-
 program.parse(process.argv);
-
-// Show help if no command provided
-if (!process.argv.slice(2).length) {
-  program.outputHelp();
-}
