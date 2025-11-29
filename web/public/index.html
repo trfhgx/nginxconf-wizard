@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nginx Configuration Wizard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Nginx Configuration Wizard</h1>
+      <p class="subtitle">Build production-ready nginx configurations with ease</p>
+    </header>
+
+    <main>
+      <div class="panels">
+        <!-- Left Panel: Configuration Builder -->
+        <div class="panel builder-panel">
+          <div class="tabs">
+            <button class="tab active" data-tab="global">Global Settings</button>
+            <button class="tab" data-tab="servers">Servers</button>
+            <button class="tab" data-tab="upstreams">Upstreams</button>
+          </div>
+
+          <!-- Global Settings Tab -->
+          <div class="tab-content active" id="tab-global">
+            <div class="form-section">
+              <h3>Worker Settings</h3>
+              
+              <div class="form-group">
+                <label for="workerProcesses">
+                  Worker Processes
+                  <span class="help-icon" data-tooltip="workerProcesses">?</span>
+                </label>
+                <select id="workerProcesses">
+                  <option value="auto" selected>auto (recommended)</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="4">4</option>
+                  <option value="8">8</option>
+                </select>
+                <p class="help-text">Number of worker processes. 'auto' matches CPU cores. Each worker handles thousands of connections.</p>
+              </div>
+
+              <div class="form-group">
+                <label for="workerConnections">
+                  Worker Connections
+                  <span class="help-icon" data-tooltip="workerConnections">?</span>
+                </label>
+                <select id="workerConnections">
+                  <option value="512">512 (low traffic)</option>
+                  <option value="1024" selected>1024 (default)</option>
+                  <option value="2048">2048 (medium traffic)</option>
+                  <option value="4096">4096 (high traffic)</option>
+                  <option value="8192">8192 (very high traffic)</option>
+                </select>
+                <p class="help-text">Maximum simultaneous connections per worker. Total capacity = workers x connections.</p>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3>Performance</h3>
+              
+              <div class="form-group checkbox-group">
+                <label>
+                  <input type="checkbox" id="compression" checked>
+                  Enable Gzip Compression
+                  <span class="help-icon" data-tooltip="compression">?</span>
+                </label>
+                <p class="help-text">Compresses responses to reduce bandwidth. Typically reduces transfer size by 70-90% for text content.</p>
+              </div>
+
+              <div class="form-group checkbox-group">
+                <label>
+                  <input type="checkbox" id="sendfile" checked>
+                  Enable Sendfile
+                  <span class="help-icon" data-tooltip="sendfile">?</span>
+                </label>
+                <p class="help-text">Uses kernel-level file transfer for static files. More efficient than reading into user space.</p>
+              </div>
+
+              <div class="form-group checkbox-group">
+                <label>
+                  <input type="checkbox" id="tcpNopush" checked>
+                  TCP Nopush
+                  <span class="help-icon" data-tooltip="tcpNopush">?</span>
+                </label>
+                <p class="help-text">Sends response headers and file contents in one packet. Reduces network overhead.</p>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h3>Security</h3>
+              
+              <div class="form-group checkbox-group">
+                <label>
+                  <input type="checkbox" id="securityHeaders" checked>
+                  Security Headers
+                  <span class="help-icon" data-tooltip="securityHeaders">?</span>
+                </label>
+                <p class="help-text">Adds X-Frame-Options, X-Content-Type-Options, X-XSS-Protection headers to prevent common attacks.</p>
+              </div>
+
+              <div class="form-group checkbox-group">
+                <label>
+                  <input type="checkbox" id="hideVersion">
+                  Hide Server Version
+                  <span class="help-icon" data-tooltip="hideVersion">?</span>
+                </label>
+                <p class="help-text">Removes nginx version from response headers. Prevents attackers from targeting known vulnerabilities.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Servers Tab -->
+          <div class="tab-content" id="tab-servers">
+            <div class="list-header">
+              <h3>Server Blocks</h3>
+              <button class="btn btn-primary" id="addServerBtn">+ Add Server</button>
+            </div>
+            <p class="help-text">Server blocks define virtual hosts. Each handles requests for specific domains.</p>
+            
+            <div id="serversList" class="items-list">
+              <div class="empty-state">No servers configured. Click "Add Server" to start.</div>
+            </div>
+          </div>
+
+          <!-- Upstreams Tab -->
+          <div class="tab-content" id="tab-upstreams">
+            <div class="list-header">
+              <h3>Global Upstreams</h3>
+              <button class="btn btn-primary" id="addUpstreamBtn">+ Add Upstream</button>
+            </div>
+            <p class="help-text">Upstreams define backend server pools for load balancing. Global upstreams can be used by any server.</p>
+            
+            <div id="upstreamsList" class="items-list">
+              <div class="empty-state">No global upstreams configured.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Panel: Preview -->
+        <div class="panel preview-panel">
+          <div class="preview-header">
+            <h3>Configuration Preview</h3>
+            <div class="preview-actions">
+              <button class="btn btn-secondary" id="copyBtn">Copy</button>
+              <button class="btn btn-primary" id="downloadBtn">Download</button>
+            </div>
+          </div>
+          <div class="preview-content">
+            <pre id="configPreview"><code># Your nginx configuration will appear here
+# Add at least one server to generate config</code></pre>
+          </div>
+          <div id="validationMessages" class="validation-messages"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Server Modal -->
+  <div class="modal" id="serverModal">
+    <div class="modal-content modal-large">
+      <div class="modal-header">
+        <h2 id="serverModalTitle">Add Server</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-section">
+          <h3>Domain Configuration</h3>
+          
+          <div class="form-group">
+            <label for="serverDomain">
+              Primary Domain
+              <span class="help-icon">?</span>
+            </label>
+            <input type="text" id="serverDomain" placeholder="example.com">
+            <p class="help-text">The main domain this server responds to. Don't include http:// or trailing slashes.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="serverAliases">
+              Domain Aliases
+              <span class="help-icon">?</span>
+            </label>
+            <input type="text" id="serverAliases" placeholder="www.example.com, api.example.com">
+            <p class="help-text">Additional domains (comma-separated) that should route to this server.</p>
+          </div>
+
+          <div class="form-group">
+            <label for="serverPort">
+              Listen Port
+              <span class="help-icon">?</span>
+            </label>
+            <input type="number" id="serverPort" value="80" min="1" max="65535">
+            <p class="help-text">Port to listen on. Use 80 for HTTP, 443 for HTTPS. Ports below 1024 require root.</p>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>SSL/TLS Configuration</h3>
+          
+          <div class="form-group checkbox-group">
+            <label>
+              <input type="checkbox" id="sslEnabled">
+              Enable SSL/TLS
+              <span class="help-icon">?</span>
+            </label>
+            <p class="help-text">Enables HTTPS. Required for security, SEO, and modern web features like HTTP/2.</p>
+          </div>
+
+          <div id="sslOptions" class="conditional-section" style="display: none;">
+            <div class="form-group">
+              <label for="sslProvider">
+                Certificate Source
+                <span class="help-icon">?</span>
+              </label>
+              <select id="sslProvider">
+                <option value="letsencrypt">Let's Encrypt (free, auto-renewal)</option>
+                <option value="custom">Custom Certificate</option>
+                <option value="selfsigned">Self-Signed (testing only)</option>
+              </select>
+              <p class="help-text">Let's Encrypt provides free certificates with automatic renewal via certbot.</p>
+            </div>
+
+            <div id="customCertOptions" style="display: none;">
+              <div class="form-group">
+                <label for="sslCertPath">Certificate Path</label>
+                <input type="text" id="sslCertPath" placeholder="/etc/ssl/certs/example.com.crt">
+              </div>
+              <div class="form-group">
+                <label for="sslKeyPath">Private Key Path</label>
+                <input type="text" id="sslKeyPath" placeholder="/etc/ssl/private/example.com.key">
+              </div>
+            </div>
+
+            <div class="form-group checkbox-group">
+              <label>
+                <input type="checkbox" id="sslRedirect" checked>
+                Redirect HTTP to HTTPS
+                <span class="help-icon">?</span>
+              </label>
+              <p class="help-text">Automatically redirects all HTTP requests to HTTPS. Recommended for security.</p>
+            </div>
+
+            <div class="form-group checkbox-group">
+              <label>
+                <input type="checkbox" id="http2" checked>
+                Enable HTTP/2
+                <span class="help-icon">?</span>
+              </label>
+              <p class="help-text">HTTP/2 enables multiplexing, header compression, and server push. Requires SSL.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3>Locations</h3>
+          <p class="help-text">Locations define how different URL paths are handled (static files, proxy to backend, etc.)</p>
+          
+          <div id="locationsList" class="items-list compact">
+            <div class="empty-state">No locations. Add at least one location.</div>
+          </div>
+          <button class="btn btn-secondary" id="addLocationBtn">+ Add Location</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="saveServerBtn">Save Server</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Location Modal -->
+  <div class="modal" id="locationModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Add Location</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="locationType">
+            Location Type
+            <span class="help-icon">?</span>
+          </label>
+          <select id="locationType">
+            <option value="static">Static Files</option>
+            <option value="spa">Single Page App (SPA)</option>
+            <option value="proxy">Reverse Proxy</option>
+            <option value="api">API Proxy</option>
+            <option value="websocket">WebSocket</option>
+            <option value="redirect">Redirect</option>
+            <option value="health">Health Check</option>
+          </select>
+          <p class="help-text" id="locationTypeHelp">Serve static files (HTML, CSS, JS, images) directly from disk.</p>
+        </div>
+
+        <div class="form-group">
+          <label for="locationPath">
+            URL Path
+            <span class="help-icon">?</span>
+          </label>
+          <input type="text" id="locationPath" placeholder="/" value="/">
+          <p class="help-text">URL path prefix this location handles. "/" matches all requests.</p>
+        </div>
+
+        <!-- Static/SPA options -->
+        <div id="staticOptions" class="location-options">
+          <div class="form-group">
+            <label for="staticRoot">
+              Root Directory
+              <span class="help-icon">?</span>
+            </label>
+            <input type="text" id="staticRoot" placeholder="/var/www/html">
+            <p class="help-text">Absolute path to directory containing files to serve.</p>
+          </div>
+          <div class="form-group">
+            <label for="staticIndex">
+              Index Files
+              <span class="help-icon">?</span>
+            </label>
+            <input type="text" id="staticIndex" value="index.html" placeholder="index.html index.htm">
+            <p class="help-text">Files to serve when a directory is requested (space-separated).</p>
+          </div>
+          <div class="form-group checkbox-group" id="spaFallbackGroup" style="display: none;">
+            <label>
+              <input type="checkbox" id="spaFallback" checked>
+              Fallback to index.html (SPA routing)
+              <span class="help-icon">?</span>
+            </label>
+            <p class="help-text">Returns index.html for all routes, letting your JS framework handle routing.</p>
+          </div>
+        </div>
+
+        <!-- Proxy options -->
+        <div id="proxyOptions" class="location-options" style="display: none;">
+          <div class="form-group">
+            <label for="proxyTarget">
+              Backend URL
+              <span class="help-icon">?</span>
+            </label>
+            <input type="text" id="proxyTarget" placeholder="http://localhost:3000">
+            <p class="help-text">URL of backend server. Can be localhost, IP, or upstream name.</p>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input type="checkbox" id="proxyWebsocket">
+              Enable WebSocket Support
+              <span class="help-icon">?</span>
+            </label>
+            <p class="help-text">Adds headers for WebSocket upgrade. Required for real-time features.</p>
+          </div>
+          <div class="form-group">
+            <label for="proxyTimeout">
+              Timeout (seconds)
+              <span class="help-icon">?</span>
+            </label>
+            <input type="number" id="proxyTimeout" value="60" min="1">
+            <p class="help-text">How long to wait for backend response before timing out.</p>
+          </div>
+        </div>
+
+        <!-- API options -->
+        <div id="apiOptions" class="location-options" style="display: none;">
+          <div class="form-group">
+            <label for="apiTarget">
+              API Backend URL
+              <span class="help-icon">?</span>
+            </label>
+            <input type="text" id="apiTarget" placeholder="http://localhost:8080">
+            <p class="help-text">URL of your API server.</p>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input type="checkbox" id="apiCors">
+              Enable CORS
+              <span class="help-icon">?</span>
+            </label>
+            <p class="help-text">Adds Cross-Origin Resource Sharing headers for browser access from other domains.</p>
+          </div>
+          <div id="corsOptions" style="display: none;">
+            <div class="form-group">
+              <label for="corsOrigin">Allowed Origins</label>
+              <input type="text" id="corsOrigin" placeholder="* or https://example.com">
+              <p class="help-text">Use * for any origin, or specify allowed domains.</p>
+            </div>
+          </div>
+          <div class="form-group checkbox-group">
+            <label>
+              <input type="checkbox" id="apiRateLimit">
+              Enable Rate Limiting
+              <span class="help-icon">?</span>
+            </label>
+            <p class="help-text">Limits requests per IP to prevent abuse and DDoS attacks.</p>
+          </div>
+          <div id="rateLimitOptions" style="display: none;">
+            <div class="form-group">
+              <label for="rateLimit">Requests per second</label>
+              <input type="number" id="rateLimit" value="10" min="1">
+            </div>
+            <div class="form-group">
+              <label for="rateBurst">Burst allowance</label>
+              <input type="number" id="rateBurst" value="20" min="1">
+              <p class="help-text">Temporary spikes allowed above the rate limit.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Redirect options -->
+        <div id="redirectOptions" class="location-options" style="display: none;">
+          <div class="form-group">
+            <label for="redirectTarget">
+              Redirect To
+              <span class="help-icon">?</span>
+            </label>
+            <input type="text" id="redirectTarget" placeholder="https://new-site.com$request_uri">
+            <p class="help-text">URL to redirect to. Use $request_uri to preserve the path.</p>
+          </div>
+          <div class="form-group">
+            <label for="redirectCode">
+              Redirect Type
+              <span class="help-icon">?</span>
+            </label>
+            <select id="redirectCode">
+              <option value="301">301 - Permanent (SEO-friendly)</option>
+              <option value="302">302 - Temporary</option>
+              <option value="307">307 - Temporary (preserves method)</option>
+              <option value="308">308 - Permanent (preserves method)</option>
+            </select>
+            <p class="help-text">301 for permanent moves (search engines update), 302 for temporary.</p>
+          </div>
+        </div>
+
+        <!-- Health check options -->
+        <div id="healthOptions" class="location-options" style="display: none;">
+          <div class="form-group">
+            <label for="healthResponse">
+              Response Body
+              <span class="help-icon">?</span>
+            </label>
+            <input type="text" id="healthResponse" value="OK" placeholder="OK">
+            <p class="help-text">Text returned for health checks. Load balancers use this to verify server is up.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="saveLocationBtn">Add Location</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upstream Modal -->
+  <div class="modal" id="upstreamModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Add Upstream</h2>
+        <button class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="upstreamName">
+            Upstream Name
+            <span class="help-icon">?</span>
+          </label>
+          <input type="text" id="upstreamName" placeholder="backend">
+          <p class="help-text">Identifier for this backend pool. Use in proxy_pass as http://name</p>
+        </div>
+
+        <div class="form-group">
+          <label for="upstreamMethod">
+            Load Balancing Method
+            <span class="help-icon">?</span>
+          </label>
+          <select id="upstreamMethod">
+            <option value="round-robin">Round Robin (default)</option>
+            <option value="least_conn">Least Connections</option>
+            <option value="ip_hash">IP Hash (sticky sessions)</option>
+          </select>
+          <p class="help-text" id="upstreamMethodHelp">Round Robin distributes requests evenly across servers.</p>
+        </div>
+
+        <div class="form-section">
+          <h4>Backend Servers</h4>
+          <p class="help-text">Add one or more backend servers to this pool.</p>
+          <div id="upstreamServersList" class="items-list compact"></div>
+          <div class="inline-form">
+            <input type="text" id="upstreamServerAddr" placeholder="localhost:3000">
+            <input type="number" id="upstreamServerWeight" placeholder="Weight" min="1" value="1" style="width: 80px;">
+            <button class="btn btn-secondary" id="addUpstreamServerBtn">Add</button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="upstreamKeepalive">
+            Keepalive Connections
+            <span class="help-icon">?</span>
+          </label>
+          <input type="number" id="upstreamKeepalive" value="32" min="0">
+          <p class="help-text">Number of idle connections to keep open. Reduces connection overhead.</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary modal-cancel">Cancel</button>
+        <button class="btn btn-primary" id="saveUpstreamBtn">Save Upstream</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

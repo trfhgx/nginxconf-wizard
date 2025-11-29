@@ -200,4 +200,84 @@ program
     }
   });
 
+// Web UI command
+program
+  .command('web')
+  .description('Start the web-based configuration wizard')
+  .option('-p, --port <port>', 'Port to run the server on', '3000')
+  .action(async (options) => {
+    try {
+      const { default: express } = await import('express');
+      const { default: open } = await import('open');
+      const { default: TreeConfigBuilder } = await import('../src/core/TreeConfigBuilder.js');
+      
+      const app = express();
+      const port = parseInt(options.port) || 3000;
+      
+      app.use(express.json());
+      app.use(express.static(join(__dirname, '../web/public')));
+      
+      // Generate nginx config from state
+      app.post('/api/generate', (req, res) => {
+        try {
+          const { state } = req.body;
+          
+          if (!state) {
+            return res.status(400).json({ error: 'State is required' });
+          }
+
+          const builder = new TreeConfigBuilder();
+          builder.setState(state);
+          
+          const validation = builder.validate();
+          if (!validation.valid) {
+            return res.status(400).json({ 
+              error: 'Validation failed', 
+              errors: validation.errors,
+              warnings: validation.warnings 
+            });
+          }
+
+          const config = builder.build();
+          
+          res.json({ 
+            config,
+            warnings: validation.warnings 
+          });
+        } catch (error) {
+          res.status(500).json({ error: error.message });
+        }
+      });
+
+      // Validate config without generating
+      app.post('/api/validate', (req, res) => {
+        try {
+          const { state } = req.body;
+          
+          if (!state) {
+            return res.status(400).json({ error: 'State is required' });
+          }
+
+          const builder = new TreeConfigBuilder();
+          builder.setState(state);
+          const validation = builder.validate();
+          
+          res.json(validation);
+        } catch (error) {
+          res.status(500).json({ error: error.message });
+        }
+      });
+
+      app.listen(port, () => {
+        const url = `http://localhost:${port}`;
+        console.log(chalk.cyan(`\nNginx Config Wizard Web UI`));
+        console.log(chalk.gray(`Running at ${url}\n`));
+        open(url);
+      });
+    } catch (error) {
+      console.error(chalk.red('Error:'), error.message);
+      process.exit(1);
+    }
+  });
+
 program.parse(process.argv);

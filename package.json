@@ -20,6 +20,7 @@
   "scripts": {
     "start": "node bin/nginxconf-wizard.js",
     "dev": "node bin/nginxconf-wizard.js",
+    "web": "node web/server.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
@@ -54,6 +55,7 @@
     "cli-table3": "^0.6.5",
     "commander": "^14.0.2",
     "configstore": "^7.1.0",
+    "express": "^5.1.0",
     "handlebars": "^4.7.8",
     "inquirer": "^12.11.1",
     "joi": "^18.0.1",
