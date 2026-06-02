@@ -142,6 +142,88 @@ nginxconf-wizard test nginx.conf
 
 ---
 
+## Roadmap
+
+### Phase 1: Stabilize the Nginx Core
+
+* [x] Interactive CLI wizard
+* [x] Core Nginx configuration generation
+* [x] SSL/TLS configuration
+* [x] Reverse proxy support
+* [x] Framework presets
+* [x] Security headers and rate limiting
+* [x] Performance profiles
+* [x] `nginx -t` testing wrapper
+* [ ] Expand generated config test fixtures
+* [ ] Add snapshot tests for every preset/profile combination
+* [ ] Improve error messages for invalid configs
+* [ ] Add CI checks for generated Nginx configs
+
+### Phase 2: Safer Update Workflow
+
+* [ ] Add config diff preview before applying changes
+* [ ] Add automatic backup before config updates
+* [ ] Add rollback command
+* [ ] Add dry-run mode
+* [ ] Add warnings for destructive or risky changes
+* [ ] Add config explanation output
+* [ ] Add safer defaults for production deployments
+
+### Phase 3: Log and Benchmark Analysis
+
+* [ ] Parse Nginx access logs
+* [ ] Parse Nginx error logs
+* [ ] Detect common upstream failures
+* [ ] Detect slow routes and high-error endpoints
+* [ ] Analyze benchmark output from `wrk`
+* [ ] Analyze benchmark output from ApacheBench
+* [ ] Analyze benchmark output from k6
+* [ ] Recommend safer performance profile changes
+* [ ] Generate before/after tuning reports
+
+### Phase 4: Agentic Configuration Analysis
+
+* [ ] Build an agentic analysis mode for complex config review
+* [ ] Add deterministic rule checks as safety boundaries
+* [ ] Detect hidden interactions between directives
+* [ ] Detect risky combinations involving caching, proxying, headers, TLS, buffers, and timeouts
+* [ ] Use logs, benchmarks, and deployment context to improve recommendations
+* [ ] Validate AI-generated suggestions before showing them to users
+* [ ] Add test cases for known dangerous configuration patterns
+
+### Phase 5: Multi-Server Support
+
+* [ ] Refactor the config engine to support multiple server backends
+* [ ] Add server adapter interface
+* [ ] Add Caddy support
+* [ ] Add Apache support
+* [ ] Add Traefik support
+* [ ] Add HAProxy support
+* [ ] Add OpenResty support
+* [ ] Add comparison mode to help users choose the right server
+
+### Phase 6: Plugin System and Community Presets
+
+* [ ] Add plugin API for new web servers
+* [ ] Add plugin API for framework presets
+* [ ] Add custom validation rules
+* [ ] Add custom organization presets
+* [ ] Add community deployment recipes
+* [ ] Add preset publishing guidelines
+* [ ] Add contribution templates for new adapters
+
+### Phase 7: Developer Experience
+
+* [ ] Improve documentation
+* [ ] Add beginner deployment guides
+* [ ] Add advanced production guides
+* [ ] Add troubleshooting examples
+* [ ] Add real-world deployment examples
+* [ ] Add more CLI examples
+* [ ] Improve npm package metadata
+* [ ] Add demo videos or GIFs
+
+
 ## Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md).
